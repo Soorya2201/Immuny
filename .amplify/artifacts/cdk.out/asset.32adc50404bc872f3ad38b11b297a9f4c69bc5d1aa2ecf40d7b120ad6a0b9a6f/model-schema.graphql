@@ -1,0 +1,10 @@
+type UserProfile @model @auth(rules: [{allow: owner, ownerField: "owner"}])
+{
+  name: String
+  age: Int
+  medicalHistory: String
+}
+
+type Query {
+  askMedGemma(question: String): String @function(name: "FnAskMedGemma") @auth(rules: [{allow: private}])
+}

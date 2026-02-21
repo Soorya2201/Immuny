@@ -1,0 +1,530 @@
+{
+ "Description": "An auto-generated nested stack for the @function directive.",
+ "AWSTemplateFormatVersion": "2010-09-09",
+ "Conditions": {
+  "HasEnvironmentParameter": {
+   "Fn::Not": [
+    {
+     "Fn::Equals": [
+      "NONE",
+      "NONE"
+     ]
+    }
+   ]
+  },
+  "CDKMetadataAvailable": {
+   "Fn::Or": [
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "af-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-3"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-south-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-3"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-4"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ca-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ca-west-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "cn-north-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "cn-northwest-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-central-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-north-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-south-2"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-3"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "il-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "me-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "me-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "sa-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-east-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-west-1"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Equals": [
+      {
+       "Ref": "AWS::Region"
+      },
+      "us-west-2"
+     ]
+    }
+   ]
+  }
+ },
+ "Resources": {
+  "FnAskMedGemmaLambdaDataSourceServiceRole411933AA": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "appsync.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Tags": [
+     {
+      "Key": "amplify:deployment-type",
+      "Value": "sandbox"
+     },
+     {
+      "Key": "amplify:friendly-name",
+      "Value": "amplifyData"
+     },
+     {
+      "Key": "created-by",
+      "Value": "amplify"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/FunctionDirectiveStack/FnAskMedGemmaLambdaDataSource/ServiceRole/Resource"
+   }
+  },
+  "FnAskMedGemmaLambdaDataSourceServiceRoleDefaultPolicy23A27C84": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "lambda:InvokeFunction",
+       "Effect": "Allow",
+       "Resource": [
+        {
+         "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aefunctionNestedStackfunctionNestedStackResourceE3A4B21FOutputsamplifyimmunyappsooryasandboxe8e77bc7aefunctionhandlerlambdaB0F71400Arn"
+        },
+        {
+         "Fn::Join": [
+          "",
+          [
+           {
+            "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aefunctionNestedStackfunctionNestedStackResourceE3A4B21FOutputsamplifyimmunyappsooryasandboxe8e77bc7aefunctionhandlerlambdaB0F71400Arn"
+           },
+           ":*"
+          ]
+         ]
+        }
+       ]
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "FnAskMedGemmaLambdaDataSourceServiceRoleDefaultPolicy23A27C84",
+    "Roles": [
+     {
+      "Ref": "FnAskMedGemmaLambdaDataSourceServiceRole411933AA"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/FunctionDirectiveStack/FnAskMedGemmaLambdaDataSource/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "FnAskMedGemmaLambdaDataSource": {
+   "Type": "AWS::AppSync::DataSource",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "LambdaConfig": {
+     "LambdaFunctionArn": {
+      "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aefunctionNestedStackfunctionNestedStackResourceE3A4B21FOutputsamplifyimmunyappsooryasandboxe8e77bc7aefunctionhandlerlambdaB0F71400Arn"
+     }
+    },
+    "Name": "FnAskMedGemmaLambdaDataSource",
+    "ServiceRoleArn": {
+     "Fn::GetAtt": [
+      "FnAskMedGemmaLambdaDataSourceServiceRole411933AA",
+      "Arn"
+     ]
+    },
+    "Type": "AWS_LAMBDA"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/FunctionDirectiveStack/FnAskMedGemmaLambdaDataSource/Resource"
+   }
+  },
+  "InvokeFnAskMedGemmaLambdaDataSourceInvokeFnAskMedGemmaLambdaDataSourceAppSyncFunctionDA4140FD": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Fn::GetAtt": [
+      "FnAskMedGemmaLambdaDataSource",
+      "Name"
+     ]
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "InvokeFnAskMedGemmaLambdaDataSource",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/4f0d1c3c9f241aacb393a20dfb4d4d86d22264ff847dd8727069bfe202459365.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/a20e304512b1fde77dc16ed9d5e0ed03817afcab629ce87ef11c99877b7b1e30.vtl"
+    }
+   },
+   "DependsOn": [
+    "FnAskMedGemmaLambdaDataSource"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/FunctionDirectiveStack/InvokeFnAskMedGemmaLambdaDataSource/InvokeFnAskMedGemmaLambdaDataSource.AppSyncFunction"
+   }
+  },
+  "QueryaskMedGemmaResolver": {
+   "Type": "AWS::AppSync::Resolver",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "FieldName": "askMedGemma",
+    "Kind": "PIPELINE",
+    "PipelineConfig": {
+     "Functions": [
+      {
+       "Fn::GetAtt": [
+        "QueryAskMedGemmaAuthFNQueryAskMedGemmaAuthFNAppSyncFunction49CD5CD9",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "InvokeFnAskMedGemmaLambdaDataSourceInvokeFnAskMedGemmaLambdaDataSourceAppSyncFunctionDA4140FD",
+        "FunctionId"
+       ]
+      }
+     ]
+    },
+    "RequestMappingTemplate": {
+     "Fn::Join": [
+      "",
+      [
+       "## [Start] Stash resolver specific context.. **\n$util.qr($ctx.stash.put(\"typeName\", \"Query\"))\n$util.qr($ctx.stash.put(\"fieldName\", \"askMedGemma\"))\n$util.qr($ctx.stash.put(\"authRole\", \"arn:aws:sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"unauthRole\", \"arn:aws:sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"identityPoolId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"adminRoles\", []))\n{}\n## [End] Stash resolver specific context.. **"
+      ]
+     ]
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/387d5992f5fc03d05de27289457dcc374a84c42a889acb504aff1031047dde00.vtl"
+    },
+    "TypeName": "Query"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/FunctionDirectiveStack/queryAskMedGemmaResolver"
+   }
+  },
+  "QueryAskMedGemmaAuthFNQueryAskMedGemmaAuthFNAppSyncFunction49CD5CD9": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "QueryAskMedGemmaAuthFN",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/8e18f3cebc70282364886a18ce867a8409c5568357ceaed6f86c71740cb443eb.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/FunctionDirectiveStack/QueryAskMedGemmaAuthFN/QueryAskMedGemmaAuthFN.AppSyncFunction"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/1WPTQ6CQAyFz+J+qAgu3PoTV8YYPICpM4VUYIbQGYwh3N0BV65eX/v1pc0gy3eQrvAtiTZ10vATxiuJJ3P3qGt1LO3RWcOenVWReozYdfKxGsYLtk+DJ/R4d6HXNLP/7hysnhdjQslV6HFJiYOCxDUD9ZNibGEsXLPwi95cw/oz2181KckfKEJeYD9L9HAIuiZ/QKFJLc14bcW2mpR1huAl6yHbwiaNr72EOemD9dwSFD/9AqDQg+T3AAAA"
+   },
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/FunctionDirectiveStack/CDKMetadata/Default"
+   },
+   "Condition": "CDKMetadataAvailable"
+  }
+ },
+ "Parameters": {
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aefunctionNestedStackfunctionNestedStackResourceE3A4B21FOutputsamplifyimmunyappsooryasandboxe8e77bc7aefunctionhandlerlambdaB0F71400Arn": {
+   "Type": "String"
+  },
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId": {
+   "Type": "String"
+  },
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef": {
+   "Type": "String"
+  },
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef": {
+   "Type": "String"
+  },
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref": {
+   "Type": "String"
+  },
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name": {
+   "Type": "String"
+  }
+ }
+}
