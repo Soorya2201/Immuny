@@ -995,7 +995,7 @@
     "FunctionVersion": "2018-05-29",
     "Name": "MutationcreateUserProfileauth0Function",
     "RequestMappingTemplateS3Location": {
-     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/8b6a16db36a940beb9379e6ca71f6de80ec92cdea4ba42f90f23c218a5d03257.vtl"
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/b20611287d56522d1293d803018d26fe0f0bfbc2e6554f7ea1a844233849ec6d.vtl"
     },
     "ResponseMappingTemplate": "$util.toJson({})"
    },
@@ -1209,7 +1209,7 @@
      "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/1f5fed297da9c32ae3af922bf3a38ccf23b956078887d16891ec06c20c64722c.vtl"
     },
     "ResponseMappingTemplateS3Location": {
-     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/c01056a9396b0ff24a06edcf63df8906f67a7811eccb1a96b93eb852747f8b64.vtl"
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/25e7a145f225d5fc865dfc9bbadc595dd8d68f0ac2ee0c2776073f90e160e89a.vtl"
     }
    },
    "DependsOn": [
@@ -2108,7 +2108,7 @@
   "CDKMetadata": {
    "Type": "AWS::CDK::Metadata",
    "Properties": {
-    "Analytics": "v2:deflate64:H4sIAAAAAAAA/1WQQU/DMAyFfwv31IyOA1fWiiOgjvvkJm6VtU2q2Bmaqv53kg4NcXr+5Cf72SWU+xfYPeA3F9oMxWhbWN6JhcxRUA+q6twnBpxIKGSovDNWrHeqIfYxaFJVZPHTH3buXqexp8VcHU7etPCF7UgHZFIWJ1gaP97cSVeF88xXp2GpN3vd1ih4vI/8T2/R6RwipelsHwNuiX43jxcKq+L9CZlJGF6zJIZD1ANJDrBm70eUOYra2unY3rp+Vc4bgjM/XspneNqlz5zZ2iJEJ3YiaG76A/mrRac2AQAA"
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/1WQ0W6DMAxFv2Xvwetof2AF7XGb6N4rkxiUQhIUO50qxL8v0KnTnq6PfGVfu4TysIfdE35zoc1QjLaF+Z1YyJwE9aCqzn9iREdCcYUqeGPFBq8a4pCiJlUlluD+sPOPOo89z+bm0QXTwhe2Ix2RSVl0MDdhvLuzLgqniW9ew1xv9rqtUfD0GPmf3pLXa4icprN9irgl+t08XikuivdnZCZheF0lMxyTHkjWAMvq/UgyJVFbOx/bW98vygdDcOHna3mAl13+zIWtLWLyYh1Bc9cf0swHpzYBAAA="
    },
    "Metadata": {
     "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/UserProfile/CDKMetadata/Default"

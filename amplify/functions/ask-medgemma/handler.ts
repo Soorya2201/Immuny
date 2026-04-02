@@ -1,65 +1,40 @@
 import type { Schema } from "../../data/resource";
 
-// 🔗 REPLACE THIS URL with your ngrok URL from Colab
-// Example: "https://abc123.ngrok-free.app"
-const COLAB_API_URL = "insert.ngrok.url/generate";
+// ─── 🔗 PASTE YOUR NGROK URL HERE (no trailing slash) ─────────────────────────
+const COLAB_BASE_URL = "https://available-lifestyle-additional-hunting.trycloudflare.com";
+// ──────────────────────────────────────────────────────────────────────────────
+
+const GENERATE_URL = `${COLAB_BASE_URL}/generate`;
+const AGENT_URL = `${COLAB_BASE_URL}/agent/ask`;
 
 export const handler: Schema["askMedGemma"]["functionHandler"] = async (event) => {
   try {
     const { question } = event.arguments;
-    
-    if (!question) {
-      return "Error: No question provided";
-    }
 
-    console.log("Question:", question);
-    console.log("Calling Colab API:", COLAB_API_URL);
+    if (!question) return "Error: No question provided";
 
-    // Call your Colab-hosted MedGemma API
-    const response = await fetch(COLAB_API_URL, {
+    console.log("→ askMedGemma:", question);
+
+    const response = await fetch(GENERATE_URL, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        question: question
-      })
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
     });
 
-    console.log("Response status:", response.status);
-
     if (!response.ok) {
-      const errorText = await response.text();
-      console.error("Colab API Error:", response.status, errorText);
-      
-      if (response.status === 503) {
-        return "⏳ The Colab GPU is starting up. Please try again in a moment.";
-      } else if (response.status === 504) {
-        return "⏳ Request timeout. The model might be loading. Please try again.";
-      }
-      
-      return `Error: Unable to reach Colab API (Status: ${response.status}). Make sure Colab is running!`;
+      const text = await response.text();
+      if (response.status === 503) return "⏳ Colab GPU is starting up. Try again in a moment.";
+      if (response.status === 504) return "⏳ Request timed out. Model may be loading.";
+      return `Error: Colab API returned ${response.status}. ${text}`;
     }
 
     const data = await response.json();
-    console.log("Colab Response:", data);
+    return (data.response ?? "No response generated.").trim();
 
-    if (data.response) {
-      return data.response.trim();
-    } else if (data.error) {
-      return `Colab Error: ${data.error}`;
-    }
-    
-    return "I apologize, but I couldn't generate a response. Please try again.";
-    
   } catch (error) {
-    console.error("Handler error:", error);
-    
-    // Check if it's a network error
-    if (error instanceof TypeError && error.message.includes('fetch')) {
-      return "❌ Cannot connect to Colab. Please make sure:\n1. Colab notebook is running\n2. ngrok URL is correct in handler.ts\n3. Colab hasn't timed out";
+    if (error instanceof TypeError && error.message.includes("fetch")) {
+      return "❌ Cannot connect to Colab. Make sure the notebook is running and ngrok URL is correct.";
     }
-    
-    return `Error: ${error instanceof Error ? error.message : 'An unexpected error occurred'}`;
+    return `Error: ${error instanceof Error ? error.message : "Unexpected error"}`;
   }
 };

@@ -1,5 +1,5 @@
 {
- "Description": "{\"createdOn\":\"Mac\",\"createdBy\":\"AmplifySandbox\",\"createdWith\":\"1.21.0\",\"stackType\":\"root\",\"metadata\":{}}",
+ "Description": "{\"createdOn\":\"Mac\",\"createdBy\":\"AmplifySandbox\",\"createdWith\":\"1.21.1\",\"stackType\":\"root\",\"metadata\":{}}",
  "Metadata": {
   "AWS::Amplify::Platform": {
    "version": "1",
@@ -155,7 +155,28 @@
       {
        "Fn::GetAtt": [
         "function1351588B",
-        "Outputs.amplifyimmunyappsooryasandboxe8e77bc7aefunctionhandlerlambdaB0F71400Ref"
+        "Outputs.amplifyimmunyappsooryasandboxe8e77bc7aefunctionaskMedGemmalambda92998554Ref"
+       ]
+      },
+      "\",\"",
+      {
+       "Fn::GetAtt": [
+        "function1351588B",
+        "Outputs.amplifyimmunyappsooryasandboxe8e77bc7aefunctionaskNovaMicrolambda2DAC1E62Ref"
+       ]
+      },
+      "\",\"",
+      {
+       "Fn::GetAtt": [
+        "function1351588B",
+        "Outputs.amplifyimmunyappsooryasandboxe8e77bc7aefunctionlogConversationEventlambdaF02E6EADRef"
+       ]
+      },
+      "\",\"",
+      {
+       "Fn::GetAtt": [
+        "function1351588B",
+        "Outputs.amplifyimmunyappsooryasandboxe8e77bc7aefunctiongetConversationLogslambda7DB2A7C4Ref"
        ]
       },
       "\"]"
@@ -258,7 +279,7 @@
        {
         "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
        },
-       "/cf31b6c81493ca644d7d5441dd9138cc6989f96b4cc818631116d098b434ccb6.json"
+       "/da6628dd5a37716168b78d9c320cc63534488e013239186817b7d5100cec5380.json"
       ]
      ]
     }
@@ -299,10 +320,28 @@
        "Outputs.amplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref"
       ]
      },
-     "referencetoamplifyimmunyappsooryasandboxe8e77bc7aefunctionNestedStackfunctionNestedStackResourceE3A4B21FOutputsamplifyimmunyappsooryasandboxe8e77bc7aefunctionhandlerlambdaB0F71400Arn": {
+     "referencetoamplifyimmunyappsooryasandboxe8e77bc7aefunctionNestedStackfunctionNestedStackResourceE3A4B21FOutputsamplifyimmunyappsooryasandboxe8e77bc7aefunctionaskMedGemmalambda92998554Arn": {
       "Fn::GetAtt": [
        "function1351588B",
-       "Outputs.amplifyimmunyappsooryasandboxe8e77bc7aefunctionhandlerlambdaB0F71400Arn"
+       "Outputs.amplifyimmunyappsooryasandboxe8e77bc7aefunctionaskMedGemmalambda92998554Arn"
+      ]
+     },
+     "referencetoamplifyimmunyappsooryasandboxe8e77bc7aefunctionNestedStackfunctionNestedStackResourceE3A4B21FOutputsamplifyimmunyappsooryasandboxe8e77bc7aefunctionaskNovaMicrolambda2DAC1E62Arn": {
+      "Fn::GetAtt": [
+       "function1351588B",
+       "Outputs.amplifyimmunyappsooryasandboxe8e77bc7aefunctionaskNovaMicrolambda2DAC1E62Arn"
+      ]
+     },
+     "referencetoamplifyimmunyappsooryasandboxe8e77bc7aefunctionNestedStackfunctionNestedStackResourceE3A4B21FOutputsamplifyimmunyappsooryasandboxe8e77bc7aefunctionlogConversationEventlambdaF02E6EADArn": {
+      "Fn::GetAtt": [
+       "function1351588B",
+       "Outputs.amplifyimmunyappsooryasandboxe8e77bc7aefunctionlogConversationEventlambdaF02E6EADArn"
+      ]
+     },
+     "referencetoamplifyimmunyappsooryasandboxe8e77bc7aefunctionNestedStackfunctionNestedStackResourceE3A4B21FOutputsamplifyimmunyappsooryasandboxe8e77bc7aefunctiongetConversationLogslambda7DB2A7C4Arn": {
+      "Fn::GetAtt": [
+       "function1351588B",
+       "Outputs.amplifyimmunyappsooryasandboxe8e77bc7aefunctiongetConversationLogslambda7DB2A7C4Arn"
       ]
      }
     },
@@ -332,7 +371,7 @@
        {
         "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
        },
-       "/5ab3845331717d1c401986b98a127dce4f36aff53834f3fbebc6b63a98ea0ab6.json"
+       "/394416aa5337fad2589691c23195d21eb16ee6a4e22322cabea38945c1fb1c83.json"
       ]
      ]
     }
@@ -374,7 +413,7 @@
        {
         "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
        },
-       "/863250ffd47702c13bfd24bbdef9557783eef3ea420ae8bc468895674c409f0c.json"
+       "/b5ac67d2676ca375a7ba853df2261224c64404233702f098e7a806869d861b29.json"
       ]
      ]
     }
@@ -390,7 +429,7 @@
   "CDKMetadata": {
    "Type": "AWS::CDK::Metadata",
    "Properties": {
-    "Analytics": "v2:deflate64:H4sIAAAAAAAA/zPSMzK20DNQTCwv1k1OydbNyUzSqw4uSUzO1nFOy/MvLSkoLQGxwEK1Onn5Kal6WcX6ZUYmeoYGQH1ZxZmZukWleSWZual6QRAaAFI45ZRUAAAA"
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/zPSMzIx1jNQTCwv1k1OydbNyUzSqw4uSUzO1nFOy/MvLSkoLQGxwEK1Onn5Kal6WcX6ZUYmeoYGQH1ZxZmZukWleSWZual6QRAaAN0ehYtUAAAA"
    },
    "Metadata": {
     "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/CDKMetadata/Default"

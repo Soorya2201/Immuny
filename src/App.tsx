@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { Authenticator } from '@aws-amplify/ui-react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../amplify/data/resource';
@@ -6,970 +6,526 @@ import '@aws-amplify/ui-react/styles.css';
 import './App.css';
 import immunyLogo from './assets/immuny-logo.png';
 
+// ─── COMPONENT IMPORTS ────────────────────────────────────────────────────────
+import ProfilePage from './components/ProfilePage';
+import SymptomLoggerPage from './components/SymptomLogger';
+import ExposureTestingPage from './components/ExposureTesting';
+
+// ── 🔴 WATCH SENSOR FEATURE (COMMENTED OUT — ready for future integration) ──
+// import WatchStatus, { type Vitals } from './components/WatchStatus';
+
 const client = generateClient<Schema>();
 
+// ─── 🔗 API ENDPOINTS ─────────────────────────────────────────────────────────
+const COLAB_BASE_URL = "https://available-lifestyle-additional-hunting.trycloudflare.com"; // 🔴 Replace with your Ngrok URL
+const AGENT_URL = `${COLAB_BASE_URL}/agent/ask`;
+const IMAGE_URL = `${COLAB_BASE_URL}/analyse-image`;
+
+// ─── TYPES ────────────────────────────────────────────────────────────────────
 interface Message {
   id: string;
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
+  source?: 'nova' | 'medgemma';
+  imagePreview?: string;
+  quickReplies?: string[];
+}
+
+interface HistoryTurn {
+  role: 'user' | 'assistant';
+  content: string;
 }
 
 type Page = 'chat' | 'profile' | 'symptom-logger' | 'exposure-testing';
 
-const OPENAI_API_KEY = 'YOUR_OPENAI_API_KEY';
-
-// ─── STORAGE HELPERS ──────────────────────────────────────────────────────────
-
-async function storageGet(key: string) {
-  try {
-    const r = await (window as any).storage.get(key);
-    return r?.value ? JSON.parse(r.value) : null;
-  } catch { return null; }
-}
-
-async function storageSet(key: string, value: any) {
-  try {
-    await (window as any).storage.set(key, JSON.stringify(value));
-  } catch {}
-}
-
-// ─── TYPES ────────────────────────────────────────────────────────────────────
-
-interface HealthEntry {
-  id: string;
-  type: 'Exposure' | 'Symptom' | 'Medication';
-  name: string;
-  time: string;
-  [key: string]: any;
-}
-
-interface ExposureTest {
-  id: string;
-  testName: string;
-  allergen: string;
-  amount: number;
-  unit: string;
-  servingContext: string;
-  protocol: string;
-  baselineSymptoms: string;
-  testDate: string;
-  testTime: string;
-  monitoringDuration: string;
-  reminders: string[];
-  status: 'planned' | 'active' | 'completed';
-  results?: string;
-  reactions?: string;
-  createdAt: string;
-}
-
-// ─── SYMPTOM LOGGER PAGE ──────────────────────────────────────────────────────
-
-const EXPOSURE_TYPES = ['Meal', 'Product', 'Environmental', 'Other'];
-const SYMPTOM_LIST = ['Hives', 'Swelling', 'Itching', 'Nausea', 'Vomiting', 'Stomach Pain', 'Difficulty Breathing', 'Dizziness', 'Headache', 'Rash', 'Other'];
-const MED_ROUTES = ['Oral', 'Topical', 'Injectable', 'Inhaled'];
-const ICONS: Record<string, string> = { Exposure: '🍽️', Symptom: '🤒', Medication: '💊' };
-
-function formatTime(iso: string) {
-  if (!iso) return '';
-  return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-}
-
-function SeverityBar({ value }: { value: number }) {
-  const color = value <= 3 ? '#6abf8e' : value <= 6 ? '#f5c842' : '#DC2626';
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-      <div style={{ flex: 1, height: 6, background: '#E9EDEF', borderRadius: 99, overflow: 'hidden' }}>
-        <div style={{ width: `${value * 10}%`, height: '100%', background: color, borderRadius: 99 }} />
-      </div>
-      <span style={{ fontWeight: 700, color, minWidth: 18, fontSize: 13 }}>{value}</span>
-    </div>
-  );
-}
-
-function EntryCard({ entry, onDelete }: { entry: HealthEntry; onDelete: () => void }) {
-  const [expanded, setExpanded] = useState(false);
-  return (
-    <div style={{ border: '1px solid #E9EDEF', borderRadius: 8, padding: 12, marginBottom: 8, background: '#fff' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ flex: 1 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, background: '#D1E7F4', color: '#4A7BA7', padding: '2px 8px', borderRadius: 12 }}>
-              {ICONS[entry.type]} {entry.type}
-            </span>
-            {entry.subtype && <span style={{ fontSize: 11, color: '#999' }}>{entry.subtype}</span>}
-          </div>
-          <div style={{ fontWeight: 600, fontSize: 14, color: '#111B21', marginBottom: 2 }}>
-            {entry.name}
-            {entry.dose && <span style={{ fontWeight: 400, color: '#667781', fontSize: 13 }}> — {entry.dose}{entry.unit} ({entry.route})</span>}
-          </div>
-          <div style={{ fontSize: 12, color: '#667781' }}>{formatTime(entry.time)}</div>
-        </div>
-        <div style={{ display: 'flex', gap: 4 }}>
-          <button onClick={() => setExpanded(!expanded)} style={{ background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', fontSize: 11 }}>
-            {expanded ? '▲' : '▼'}
-          </button>
-          <button onClick={onDelete} style={{ background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', color: '#DC2626', fontSize: 11 }}>✕</button>
-        </div>
-      </div>
-      {entry.severity && <SeverityBar value={entry.severity} />}
-      {entry.tags?.length > 0 && (
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-          {entry.tags.map((t: string, i: number) => (
-            <span key={i} style={{ background: '#F0F2F5', border: '1px solid #E9EDEF', borderRadius: 12, padding: '2px 8px', fontSize: 11, color: '#667781' }}>{t}</span>
-          ))}
-        </div>
-      )}
-      {expanded && (entry.notes || entry.details || entry.reason || entry.bodyArea) && (
-        <div style={{ marginTop: 8, padding: 10, background: '#F0F2F5', borderRadius: 6, fontSize: 13, color: '#3B4A54', borderTop: '1px solid #E9EDEF' }}>
-          {entry.bodyArea && <div>📍 {entry.bodyArea}</div>}
-          {entry.notes || entry.details || entry.reason}
-        </div>
-      )}
-    </div>
-  );
-}
-
-function SymptomLoggerPage() {
-  const now = new Date();
-  const [activeTab, setActiveTab] = useState<'Exposure' | 'Symptom' | 'Medication' | 'History'>('Exposure');
-  const [entries, setEntries] = useState<HealthEntry[]>([]);
-  const [historyFilter, setHistoryFilter] = useState('All');
-  const [search, setSearch] = useState('');
-  const [loaded, setLoaded] = useState(false);
-
-  // Voice
-  const [listening, setListening] = useState(false);
-  const [voiceText, setVoiceText] = useState('');
-  const recRef = useRef<any>(null);
-  const voiceSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
-
-  // Exposure form
-  const [expType, setExpType] = useState('Meal');
-  const [expName, setExpName] = useState('');
-  const [expTags, setExpTags] = useState('');
-  const [expDetails, setExpDetails] = useState('');
-  const [expTime, setExpTime] = useState(now.toISOString().slice(0, 16));
-
-  // Symptom form
-  const [symName, setSymName] = useState('');
-  const [symCustom, setSymCustom] = useState('');
-  const [symSeverity, setSymSeverity] = useState(5);
-  const [symBody, setSymBody] = useState('');
-  const [symNotes, setSymNotes] = useState('');
-  const [symTime, setSymTime] = useState(now.toISOString().slice(0, 16));
-
-  // Medication form
-  const [medName, setMedName] = useState('');
-  const [medDose, setMedDose] = useState('');
-  const [medUnit, setMedUnit] = useState('mg');
-  const [medRoute, setMedRoute] = useState('Oral');
-  const [medReason, setMedReason] = useState('');
-  const [medNotes, setMedNotes] = useState('');
-  const [medTime, setMedTime] = useState(now.toISOString().slice(0, 16));
-
-  const [savedMsg, setSavedMsg] = useState('');
-
-  useEffect(() => {
-    (async () => {
-      const data = await storageGet('immuny-health-entries');
-      if (data) setEntries(data);
-      setLoaded(true);
-    })();
-  }, []);
-
-  useEffect(() => {
-    if (!loaded) return;
-    storageSet('immuny-health-entries', entries);
-  }, [entries, loaded]);
-
-  const addEntry = (entry: Omit<HealthEntry, 'id'>) => {
-    const e = { ...entry, id: Date.now().toString() } as HealthEntry;
-    setEntries(prev => [...prev, e]);
-    setSavedMsg('✅ Saved!');
-    setTimeout(() => setSavedMsg(''), 2000);
-  };
-
-  const deleteEntry = (id: string) => {
-    if (!confirm('Delete this entry?')) return;
-    setEntries(prev => prev.filter(e => e.id !== id));
-  };
-
-  const startVoice = () => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const rec = new SR();
-    rec.continuous = false; rec.lang = 'en-US';
-    rec.onresult = (e: any) => setVoiceText(e.results[0][0].transcript);
-    rec.onend = () => setListening(false);
-    rec.start(); recRef.current = rec; setListening(true);
-  };
-
-  const stopVoice = () => { recRef.current?.stop(); setListening(false); };
-
-  const filteredEntries = entries
-    .filter(e => historyFilter === 'All' || e.type === historyFilter)
-    .filter(e => !search || e.name?.toLowerCase().includes(search.toLowerCase()) ||
-      e.tags?.some((t: string) => t.toLowerCase().includes(search.toLowerCase())))
-    .slice().reverse();
-
-  return (
-    <div className="page-container">
-      <h2>📋 Health Logger</h2>
-
-      {/* Voice Bar */}
-      <div style={{ background: '#F0F2F5', borderRadius: 8, padding: 12, marginBottom: 20, border: '1px solid #E9EDEF' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: voiceText ? 10 : 0 }}>
-          <button onClick={listening ? stopVoice : startVoice} className="save-btn"
-            style={{ padding: '8px 16px', fontSize: 13, background: listening ? '#DC2626' : '#4A7BA7' }}>
-            {listening ? '⏹ Stop' : '🎙️ Voice Log'}
-          </button>
-          {!voiceSupported && <span style={{ fontSize: 12, color: '#DC2626' }}>Voice not supported</span>}
-          {listening && <span style={{ fontSize: 12, color: '#4A7BA7', fontWeight: 600 }}>● Listening...</span>}
-        </div>
-        {voiceText && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div style={{ flex: 1, background: '#fff', border: '1px solid #E9EDEF', borderRadius: 6, padding: '8px 12px', fontSize: 13 }}>"{voiceText}"</div>
-            <button className="save-btn" style={{ padding: '8px 12px', fontSize: 12, whiteSpace: 'nowrap' }}
-              onClick={() => setVoiceText('')}>Clear</button>
-          </div>
-        )}
-        <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>💡 Speak your entry, then fill the form below</div>
-      </div>
-
-      {/* Tab Nav */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E9EDEF', paddingBottom: 0 }}>
-        {(['Exposure', 'Symptom', 'Medication', 'History'] as const).map(t => (
-          <button key={t} onClick={() => setActiveTab(t)} style={{
-            padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer',
-            fontWeight: 600, fontSize: 13, color: activeTab === t ? '#4A7BA7' : '#667781',
-            borderBottom: activeTab === t ? '2px solid #4A7BA7' : '2px solid transparent',
-            marginBottom: -2
-          }}>
-            {t === 'Exposure' ? '🍽️' : t === 'Symptom' ? '🤒' : t === 'Medication' ? '💊' : '📋'} {t}
-            {t === 'History' && ` (${entries.length})`}
-          </button>
-        ))}
-      </div>
-
-      {savedMsg && (
-        <div style={{ background: '#D1E7F4', border: '1px solid #4A7BA7', borderRadius: 6, padding: '10px 16px', marginBottom: 16, color: '#4A7BA7', fontWeight: 600 }}>
-          {savedMsg}
-        </div>
-      )}
-
-      {/* ── Exposure Form ── */}
-      {activeTab === 'Exposure' && (
-        <div>
-          {voiceText && <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 6, padding: 10, marginBottom: 16, fontSize: 13 }}>🎙️ Voice: <strong>"{voiceText}"</strong></div>}
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label>Type of Exposure</label>
-              <select value={expType} onChange={e => setExpType(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }}>
-                {EXPOSURE_TYPES.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-            <div className="form-group" style={{ flex: 2 }}>
-              <label>Name / Description</label>
-              <input className="form-group input" type="text" value={expName} onChange={e => setExpName(e.target.value)} placeholder="e.g., Chicken Caesar Salad"
-                style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }} />
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Ingredients / Tags (comma-separated)</label>
-            <input type="text" value={expTags} onChange={e => setExpTags(e.target.value)} placeholder="e.g., chicken, lettuce, peanuts"
-              style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }} />
-          </div>
-          <div className="form-group">
-            <label>Additional Details</label>
-            <textarea value={expDetails} onChange={e => setExpDetails(e.target.value)} placeholder="Any extra notes..." rows={2}
-              style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15, fontFamily: 'inherit', resize: 'vertical' }} />
-          </div>
-          <div className="form-group">
-            <label>Date & Time</label>
-            <input type="datetime-local" value={expTime} onChange={e => setExpTime(e.target.value)}
-              style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }} />
-          </div>
-          <button className="save-btn" onClick={() => {
-            if (!expName.trim()) return alert('Please enter a name.');
-            addEntry({ type: 'Exposure', subtype: expType, name: expName, tags: expTags.split(',').map(t => t.trim()).filter(Boolean), details: expDetails, time: expTime });
-            setExpName(''); setExpTags(''); setExpDetails('');
-          }}>✅ Log Exposure</button>
-        </div>
-      )}
-
-      {/* ── Symptom Form ── */}
-      {activeTab === 'Symptom' && (
-        <div>
-          {voiceText && <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 6, padding: 10, marginBottom: 16, fontSize: 13 }}>🎙️ Voice: <strong>"{voiceText}"</strong></div>}
-          <div className="form-group">
-            <label>Symptom</label>
-            <select value={symName} onChange={e => setSymName(e.target.value)}
-              style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }}>
-              <option value="">Select symptom...</option>
-              {SYMPTOM_LIST.map(s => <option key={s}>{s}</option>)}
-            </select>
-          </div>
-          {symName === 'Other' && (
-            <div className="form-group">
-              <label>Describe Symptom</label>
-              <input type="text" value={symCustom} onChange={e => setSymCustom(e.target.value)} placeholder="e.g., Throat tightness"
-                style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }} />
-            </div>
-          )}
-          <div className="form-group">
-            <label>Severity: {symSeverity}/10</label>
-            <input type="range" min="1" max="10" value={symSeverity} onChange={e => setSymSeverity(Number(e.target.value))}
-              style={{ width: '100%', accentColor: '#4A7BA7' }} />
-            <SeverityBar value={symSeverity} />
-          </div>
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label>Body Area (optional)</label>
-              <input type="text" value={symBody} onChange={e => setSymBody(e.target.value)} placeholder="e.g., Face, Hands"
-                style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }} />
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label>Date & Time</label>
-              <input type="datetime-local" value={symTime} onChange={e => setSymTime(e.target.value)}
-                style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }} />
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Notes</label>
-            <textarea value={symNotes} onChange={e => setSymNotes(e.target.value)} placeholder="Additional observations..." rows={2}
-              style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15, fontFamily: 'inherit', resize: 'vertical' }} />
-          </div>
-          <button className="save-btn" onClick={() => {
-            const name = symName === 'Other' ? symCustom : symName;
-            if (!name) return alert('Please select a symptom.');
-            addEntry({ type: 'Symptom', name, severity: symSeverity, bodyArea: symBody, notes: symNotes, time: symTime });
-            setSymName(''); setSymCustom(''); setSymSeverity(5); setSymBody(''); setSymNotes('');
-          }}>✅ Log Symptom</button>
-        </div>
-      )}
-
-      {/* ── Medication Form ── */}
-      {activeTab === 'Medication' && (
-        <div>
-          {voiceText && <div style={{ background: '#fff3cd', border: '1px solid #ffc107', borderRadius: 6, padding: 10, marginBottom: 16, fontSize: 13 }}>🎙️ Voice: <strong>"{voiceText}"</strong></div>}
-          <div className="form-group">
-            <label>Medication Name</label>
-            <input type="text" value={medName} onChange={e => setMedName(e.target.value)} placeholder="e.g., Benadryl, EpiPen"
-              style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }} />
-          </div>
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label>Dose</label>
-              <input type="text" value={medDose} onChange={e => setMedDose(e.target.value)} placeholder="25"
-                style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }} />
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label>Unit</label>
-              <select value={medUnit} onChange={e => setMedUnit(e.target.value)}
-                style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }}>
-                {['mg', 'ml', 'mcg', 'units', 'puffs'].map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-            <div className="form-group" style={{ flex: 1 }}>
-              <label>Route</label>
-              <select value={medRoute} onChange={e => setMedRoute(e.target.value)}
-                style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }}>
-                {MED_ROUTES.map(o => <option key={o}>{o}</option>)}
-              </select>
-            </div>
-          </div>
-          <div className="form-group">
-            <label>Reason (optional)</label>
-            <input type="text" value={medReason} onChange={e => setMedReason(e.target.value)} placeholder="e.g., Allergic reaction"
-              style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }} />
-          </div>
-          <div className="form-group">
-            <label>Notes</label>
-            <textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} placeholder="Additional notes..." rows={2}
-              style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15, fontFamily: 'inherit', resize: 'vertical' }} />
-          </div>
-          <div className="form-group">
-            <label>Date & Time</label>
-            <input type="datetime-local" value={medTime} onChange={e => setMedTime(e.target.value)}
-              style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 15 }} />
-          </div>
-          <button className="save-btn" onClick={() => {
-            if (!medName.trim()) return alert('Please enter medication name.');
-            addEntry({ type: 'Medication', name: medName, dose: medDose, unit: medUnit, route: medRoute, reason: medReason, notes: medNotes, time: medTime });
-            setMedName(''); setMedDose(''); setMedReason(''); setMedNotes('');
-          }}>✅ Log Medication</button>
-        </div>
-      )}
-
-      {/* ── History ── */}
-      {activeTab === 'History' && (
-        <div>
-          <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-            {['All', 'Exposure', 'Symptom', 'Medication'].map(f => (
-              <button key={f} onClick={() => setHistoryFilter(f)} style={{
-                padding: '6px 14px', borderRadius: 20, border: '1px solid #E9EDEF', cursor: 'pointer',
-                fontWeight: 600, fontSize: 12, background: historyFilter === f ? '#4A7BA7' : '#F0F2F5',
-                color: historyFilter === f ? '#fff' : '#667781'
-              }}>
-                {f === 'All' ? f : `${ICONS[f]} ${f}`}
-              </button>
-            ))}
-          </div>
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Search entries..."
-            style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, marginBottom: 16, fontSize: 14 }} />
-          <div style={{ fontSize: 12, color: '#667781', marginBottom: 12 }}>{filteredEntries.length} {filteredEntries.length === 1 ? 'entry' : 'entries'}</div>
-          {filteredEntries.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#ccc' }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>📭</div>
-              No entries found
-            </div>
-          ) : filteredEntries.map(e => <EntryCard key={e.id} entry={e} onDelete={() => deleteEntry(e.id)} />)}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ─── EXPOSURE TESTING PAGE ────────────────────────────────────────────────────
-
-const SAFETY_CHECKS = [
-  { id: 'provider', label: 'Healthcare provider has approved this test' },
-  { id: 'emergency', label: 'Emergency medication is within reach' },
-  { id: 'someone', label: 'Someone else is present or aware' },
-  { id: 'baseline', label: 'Current symptoms are at baseline' },
-  { id: 'controlled', label: 'Testing in controlled environment' },
-  { id: 'document', label: 'Ready to document all reactions' },
+// ─── MEDICAL TRIAGE KEYWORDS ──────────────────────────────────────────────────
+const MEDICAL_KEYWORDS = [
+  'allerg', 'rash', 'hive', 'itch', 'swell', 'anaphyla', 'epipen',
+  'symptom', 'reaction', 'medication', 'antihistamine', 'inhaler',
+  'throat', 'breathing', 'wheez', 'sting', 'bite', 'food', 'peanut',
+  'dairy', 'gluten', 'pollen', 'asthma', 'diagnos', 'treatment',
+  'doctor', 'hospital', 'pain', 'nausea', 'vomit', 'fever', 'skin',
+  'immune', 'inflam', 'histamin', 'sensitiv', 'exposure', 'trigger',
+  'throat', 'redness', 'bumps', 'hives', 'tingling', 'swelling',
 ];
 
-const REMINDER_OPTIONS = ['5 min', '15 min', '30 min', '1 hour', '2 hours', '4 hours'];
-const DURATION_OPTIONS = ['1 hour', '2 hours', '4 hours', '8 hours', '12 hours', '24 hours'];
+const isMedicalQuery = (text: string): boolean => {
+  const lower = text.toLowerCase();
+  return MEDICAL_KEYWORDS.some(k => lower.includes(k));
+};
 
-function ExposureTestingPage() {
-  const now = new Date();
-  const [activeTab, setActiveTab] = useState<'new' | 'results' | 'history'>('new');
-  const [checks, setChecks] = useState<Record<string, boolean>>({});
-  const [tests, setTests] = useState<ExposureTest[]>([]);
-  const [loaded, setLoaded] = useState(false);
+// ─── SENTENCE SPLITTER ────────────────────────────────────────────────────────
+// Splits a response into individual sentence strings for multi-bubble display.
+// Respects abbreviations like Dr., Mr., e.g., i.e., etc.
+const splitIntoSentences = (text: string): string[] => {
+  // Clean first
+  const cleaned = text
+    .replace(/\r\n/g, '\n')
+    .replace(/\n{2,}/g, '\n')
+    .trim();
 
-  // Form state
-  const [testName, setTestName] = useState('');
-  const [allergen, setAllergen] = useState('');
-  const [amount, setAmount] = useState('1.00');
-  const [unit, setUnit] = useState('grams');
-  const [servingContext, setServingContext] = useState('');
-  const [protocol, setProtocol] = useState('');
-  const [baselineSymptoms, setBaselineSymptoms] = useState('');
-  const [testDate, setTestDate] = useState(now.toISOString().slice(0, 10));
-  const [testTime, setTestTime] = useState(now.toTimeString().slice(0, 5));
-  const [monitoringDuration, setMonitoringDuration] = useState('8 hours');
-  const [reminders, setReminders] = useState<string[]>(['15 min', '30 min', '1 hour', '2 hours']);
+  // Split on sentence-ending punctuation followed by whitespace or newline
+  const raw = cleaned.split(/(?<=[.!?])\s+(?=[A-Z\u0080-\uFFFF*•-]|\d)/);
+  const sentences: string[] = [];
 
-  // Results state
-  const [selectedTestId, setSelectedTestId] = useState('');
-  const [results, setResults] = useState('');
-  const [reactions, setReactions] = useState('');
-  const [savedMsg, setSavedMsg] = useState('');
+  for (const chunk of raw) {
+    const trimmed = chunk.trim();
+    if (trimmed.length === 0) continue;
+    // Further split on newlines that introduce bullets or numbered lists
+    const lines = trimmed.split(/\n+/);
+    for (const line of lines) {
+      const l = line.trim();
+      if (l.length > 0) sentences.push(l);
+    }
+  }
 
-  useEffect(() => {
-    (async () => {
-      const data = await storageGet('immuny-exposure-tests');
-      if (data) setTests(data);
-      setLoaded(true);
-    })();
-  }, []);
+  return sentences.length > 0 ? sentences : [cleaned];
+};
 
-  useEffect(() => {
-    if (!loaded) return;
-    storageSet('immuny-exposure-tests', tests);
-  }, [tests, loaded]);
-
-  const allChecked = SAFETY_CHECKS.every(c => checks[c.id]);
-
-  const toggleCheck = (id: string) => setChecks(prev => ({ ...prev, [id]: !prev[id] }));
-  const toggleReminder = (r: string) => setReminders(prev => prev.includes(r) ? prev.filter(x => x !== r) : [...prev, r]);
-
-  const startTest = () => {
-    if (!allChecked) return alert('Please complete all safety checks first.');
-    if (!testName.trim() || !allergen.trim()) return alert('Please enter test name and allergen.');
-    const test: ExposureTest = {
-      id: Date.now().toString(),
-      testName, allergen, amount: parseFloat(amount), unit, servingContext,
-      protocol, baselineSymptoms, testDate, testTime, monitoringDuration,
-      reminders, status: 'active', createdAt: new Date().toISOString()
-    };
-    setTests(prev => [...prev, test]);
-    setSavedMsg('✅ Test started and saved!');
-    setTimeout(() => setSavedMsg(''), 2000);
-    setTestName(''); setAllergen(''); setAmount('1.00'); setServingContext('');
-    setProtocol(''); setBaselineSymptoms('');
-    setActiveTab('results');
-  };
-
-  const saveResults = () => {
-    if (!selectedTestId) return alert('Please select a test.');
-    setTests(prev => prev.map(t => t.id === selectedTestId ? { ...t, results, reactions, status: 'completed' as const } : t));
-    setSavedMsg('✅ Results saved!');
-    setTimeout(() => setSavedMsg(''), 2000);
-    setResults(''); setReactions(''); setSelectedTestId('');
-  };
-
-  const deleteTest = (id: string) => {
-    if (!confirm('Delete this test?')) return;
-    setTests(prev => prev.filter(t => t.id !== id));
-  };
-
-  return (
-    <div className="page-container">
-      <h2> Exposure Testing</h2>
-
-      {/* Safety Warning */}
-      <div style={{ border: '2px solid #DC2626', borderRadius: 8, padding: 16, marginBottom: 20, background: '#FFF5F5', textAlign: 'center' }}>
-        <div style={{ fontSize: 18, fontWeight: 700, color: '#DC2626', marginBottom: 8 }}>IMPORTANT SAFETY WARNING </div>
-        <p style={{ fontSize: 13, color: '#555', margin: '4px 0' }}>This is an experimental feature for controlled exposure testing under medical supervision.</p>
-        <p style={{ fontSize: 13, color: '#555', margin: '4px 0' }}>ALWAYS consult your healthcare professional before performing any exposure tests</p>
-        <p style={{ fontSize: 13, color: '#555', margin: '4px 0' }}>ALWAYS have your emergency medication nearby during testing</p>
-        <p style={{ fontSize: 13, color: '#555', margin: '4px 0' }}>Stop immediately if you experience severe symptoms and seek medical attention</p>
-      </div>
-
-      {/* Safety Checklist */}
-      <div style={{ border: '1px solid #E9EDEF', borderRadius: 8, padding: 16, marginBottom: 20 }}>
-        <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: '#3B4A54' }}>🛡️ Safety Checklist — Complete Before Testing</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-          {SAFETY_CHECKS.map(c => (
-            <label key={c.id} style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', fontSize: 13 }}>
-              <input type="checkbox" checked={!!checks[c.id]} onChange={() => toggleCheck(c.id)}
-                style={{ width: 16, height: 16, accentColor: '#4A7BA7' }} />
-              <span style={{ color: checks[c.id] ? '#4A7BA7' : '#667781' }}>{c.label}</span>
-            </label>
-          ))}
-        </div>
-        {allChecked && (
-          <div style={{ marginTop: 12, padding: '8px 12px', background: '#D1E7F4', borderRadius: 6, color: '#4A7BA7', fontWeight: 600, fontSize: 13 }}>
-            ✅ All safety requirements met — you may proceed with testing
-          </div>
-        )}
-        {!allChecked && (
-          <div style={{ marginTop: 12, padding: '8px 12px', background: '#FFF3CD', borderRadius: 6, color: '#856404', fontWeight: 600, fontSize: 13 }}>
-            ⚠️ Please complete all safety checks before starting a test
-          </div>
-        )}
-      </div>
-
-      {savedMsg && (
-        <div style={{ background: '#D1E7F4', border: '1px solid #4A7BA7', borderRadius: 6, padding: '10px 16px', marginBottom: 16, color: '#4A7BA7', fontWeight: 600 }}>
-          {savedMsg}
-        </div>
-      )}
-
-      {/* Tab Nav */}
-      <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E9EDEF' }}>
-        {(['new', 'results', 'history'] as const).map(t => (
-          <button key={t} onClick={() => setActiveTab(t)} style={{
-            padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer',
-            fontWeight: 600, fontSize: 13, color: activeTab === t ? '#4A7BA7' : '#667781',
-            borderBottom: activeTab === t ? '2px solid #4A7BA7' : '2px solid transparent',
-            marginBottom: -2
-          }}>
-            {t === 'new' ? ' New Test' : t === 'results' ? ' Test Results' : ` History (${tests.length})`}
-          </button>
-        ))}
-      </div>
-
-      {/* ── New Test Form ── */}
-      {activeTab === 'new' && (
-        <div style={{ opacity: allChecked ? 1 : 0.5, pointerEvents: allChecked ? 'auto' : 'none' }}>
-          {!allChecked && (
-            <div style={{ textAlign: 'center', padding: 16, color: '#DC2626', fontWeight: 600, fontSize: 13, marginBottom: 16 }}>
-              🔒 Complete all safety checks above to unlock this form
-            </div>
-          )}
-
-          <h3 style={{ color: '#4A7BA7', marginBottom: 16, fontSize: 16 }}> Design Exposure Test</h3>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
-            {/* Left column */}
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: '#3B4A54', borderBottom: '1px solid #E9EDEF', paddingBottom: 8 }}>Test Setup</div>
-              <div className="form-group">
-                <label>Test Name</label>
-                <input type="text" value={testName} onChange={e => setTestName(e.target.value)} placeholder="e.g., 'Peanut Challenge - 1g'"
-                  style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14 }} />
-              </div>
-              <div className="form-group">
-                <label>Allergen/Substance</label>
-                <input type="text" value={allergen} onChange={e => setAllergen(e.target.value)} placeholder="e.g., 'Peanuts'"
-                  style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14 }} />
-              </div>
-              <div style={{ fontWeight: 700, fontSize: 14, margin: '16px 0 12px', color: '#3B4A54', borderBottom: '1px solid #E9EDEF', paddingBottom: 8 }}>Dosage Information</div>
-              <div className="form-group">
-                <label>Amount</label>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <button onClick={() => setAmount(a => String(Math.max(0.25, parseFloat(a) - 0.25)))}
-                    style={{ padding: '8px 12px', border: '1px solid #E9EDEF', borderRadius: 6, cursor: 'pointer', background: '#F0F2F5' }}>−</button>
-                  <input type="number" value={amount} onChange={e => setAmount(e.target.value)} step="0.25" min="0"
-                    style={{ flex: 1, padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14, textAlign: 'center' }} />
-                  <button onClick={() => setAmount(a => String(parseFloat(a) + 0.25))}
-                    style={{ padding: '8px 12px', border: '1px solid #E9EDEF', borderRadius: 6, cursor: 'pointer', background: '#F0F2F5' }}>+</button>
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Unit</label>
-                <select value={unit} onChange={e => setUnit(e.target.value)}
-                  style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14 }}>
-                  {['grams', 'mg', 'ml', 'tsp', 'tbsp', 'pieces', 'servings'].map(o => <option key={o}>{o}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Serving Context</label>
-                <input type="text" value={servingContext} onChange={e => setServingContext(e.target.value)} placeholder="e.g., '1/4 peanut butter sandwich'"
-                  style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14 }} />
-              </div>
-            </div>
-
-            {/* Right column */}
-            <div>
-              <div style={{ fontWeight: 700, fontSize: 14, marginBottom: 12, color: '#3B4A54', borderBottom: '1px solid #E9EDEF', paddingBottom: 8 }}>Timing & Monitoring</div>
-              <div className="form-group">
-                <label>Test Date</label>
-                <input type="date" value={testDate} onChange={e => setTestDate(e.target.value)}
-                  style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14 }} />
-              </div>
-              <div className="form-group">
-                <label>Test Time</label>
-                <input type="time" value={testTime} onChange={e => setTestTime(e.target.value)}
-                  style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14 }} />
-              </div>
-              <div className="form-group">
-                <label>Monitoring Duration</label>
-                <select value={monitoringDuration} onChange={e => setMonitoringDuration(e.target.value)}
-                  style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14 }}>
-                  {DURATION_OPTIONS.map(o => <option key={o}>{o}</option>)}
-                </select>
-              </div>
-              <div className="form-group">
-                <label>Symptom Check Reminders</label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 4 }}>
-                  {REMINDER_OPTIONS.map(r => (
-                    <button key={r} onClick={() => toggleReminder(r)} style={{
-                      padding: '4px 10px', borderRadius: 16, border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                      background: reminders.includes(r) ? '#DC2626' : '#F0F2F5',
-                      color: reminders.includes(r) ? '#fff' : '#667781'
-                    }}>
-                      {r} {reminders.includes(r) ? '×' : '+'}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Protocol */}
-          <div style={{ fontWeight: 700, fontSize: 14, margin: '16px 0 12px', color: '#3B4A54', borderBottom: '1px solid #E9EDEF', paddingBottom: 8 }}>Test Protocol</div>
-          <div className="form-group">
-            <label>Detailed Protocol</label>
-            <textarea value={protocol} onChange={e => setProtocol(e.target.value)} rows={3}
-              placeholder="Describe exactly how the test will be conducted, including preparation, administration, and monitoring procedures..."
-              style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }} />
-          </div>
-          <div className="form-group">
-            <label>Baseline Symptoms (before test)</label>
-            <textarea value={baselineSymptoms} onChange={e => setBaselineSymptoms(e.target.value)} rows={2}
-              placeholder="Document any existing symptoms before starting the test..."
-              style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }} />
-          </div>
-          <button className="save-btn" onClick={startTest} style={{ padding: '12px 24px', fontSize: 15 }}>Start Exposure Test</button>
-        </div>
-      )}
-
-      {/* ── Results Form ── */}
-      {activeTab === 'results' && (
-        <div>
-          <h3 style={{ color: '#4A7BA7', marginBottom: 16, fontSize: 16 }}>📊 Record Test Results</h3>
-          <div className="form-group">
-            <label>Select Test</label>
-            <select value={selectedTestId} onChange={e => setSelectedTestId(e.target.value)}
-              style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14 }}>
-              <option value="">Choose a test...</option>
-              {tests.filter(t => t.status === 'active').map(t => (
-                <option key={t.id} value={t.id}>{t.testName} — {t.allergen} ({t.testDate})</option>
-              ))}
-            </select>
-          </div>
-          {tests.filter(t => t.status === 'active').length === 0 && (
-            <div style={{ color: '#667781', fontSize: 13, padding: '12px 16px', background: '#F0F2F5', borderRadius: 8, marginBottom: 16 }}>
-              No active tests. Start a new test first.
-            </div>
-          )}
-          <div className="form-group">
-            <label>Results / Observations</label>
-            <textarea value={results} onChange={e => setResults(e.target.value)} rows={4}
-              placeholder="Describe the outcome of the exposure test, any observations, patient response..."
-              style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }} />
-          </div>
-          <div className="form-group">
-            <label>Reactions (if any)</label>
-            <textarea value={reactions} onChange={e => setReactions(e.target.value)} rows={3}
-              placeholder="Document any allergic reactions, symptoms that appeared, severity..."
-              style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontSize: 14, fontFamily: 'inherit', resize: 'vertical' }} />
-          </div>
-          <button className="save-btn" onClick={saveResults}>✅ Save Results</button>
-        </div>
-      )}
-
-      {/* ── History ── */}
-      {activeTab === 'history' && (
-        <div>
-          <h3 style={{ color: '#4A7BA7', marginBottom: 16, fontSize: 16 }}>📋 Testing History</h3>
-          {tests.length === 0 ? (
-            <div style={{ textAlign: 'center', padding: 40, color: '#ccc' }}>
-              <div style={{ fontSize: 40, marginBottom: 8 }}>🧫</div>
-              No tests recorded yet
-            </div>
-          ) : tests.slice().reverse().map(t => (
-            <div key={t.id} style={{ border: '1px solid #E9EDEF', borderRadius: 8, padding: 14, marginBottom: 10, background: '#fff' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                <div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-                    <span style={{ fontWeight: 700, fontSize: 15, color: '#111B21' }}>{t.testName}</span>
-                    <span style={{
-                      fontSize: 11, fontWeight: 700, padding: '2px 8px', borderRadius: 12,
-                      background: t.status === 'completed' ? '#D4EDDA' : t.status === 'active' ? '#D1E7F4' : '#FFF3CD',
-                      color: t.status === 'completed' ? '#155724' : t.status === 'active' ? '#4A7BA7' : '#856404'
-                    }}>
-                      {t.status === 'completed' ? '✅ Completed' : t.status === 'active' ? '⏳ Active' : '📋 Planned'}
-                    </span>
-                  </div>
-                  <div style={{ fontSize: 13, color: '#667781' }}>🧪 {t.allergen} · {t.amount}{t.unit} · {t.testDate}</div>
-                  {t.results && <div style={{ fontSize: 13, color: '#3B4A54', marginTop: 6, padding: '8px', background: '#F0F2F5', borderRadius: 6 }}>{t.results}</div>}
-                  {t.reactions && <div style={{ fontSize: 13, color: '#DC2626', marginTop: 4, padding: '8px', background: '#FFF5F5', borderRadius: 6 }}>⚠️ {t.reactions}</div>}
-                </div>
-                <button onClick={() => deleteTest(t.id)}
-                  style={{ background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', color: '#DC2626', fontSize: 11, flexShrink: 0 }}>✕</button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-
-
+// ─── UTILITIES ────────────────────────────────────────────────────────────────
 function renderMarkdown(text: string): React.ReactNode {
-  // Split into lines first
   const lines = text.split('\n');
-  
   return lines.map((line, lineIndex) => {
-    // Process inline markdown for each line
     const parts: React.ReactNode[] = [];
-    
-    // Pattern: **bold**, *italic*, numbered lists
     const regex = /(\*\*(.+?)\*\*|\*(.+?)\*)/g;
     let lastIndex = 0;
     let match;
-    
     while ((match = regex.exec(line)) !== null) {
-      // Add text before match
-      if (match.index > lastIndex) {
-        parts.push(line.slice(lastIndex, match.index));
-      }
-      
-      if (match[0].startsWith('**')) {
-        // Bold
-        parts.push(<strong key={`${lineIndex}-${match.index}`}>{match[2]}</strong>);
-      } else {
-        // Italic
-        parts.push(<em key={`${lineIndex}-${match.index}`}>{match[3]}</em>);
-      }
-      
+      if (match.index > lastIndex) parts.push(line.slice(lastIndex, match.index));
+      if (match[0].startsWith('**')) parts.push(<strong key={`${lineIndex}-${match.index}`}>{match[2]}</strong>);
+      else parts.push(<em key={`${lineIndex}-${match.index}`}>{match[3]}</em>);
       lastIndex = match.index + match[0].length;
     }
-    
-    // Add remaining text
-    if (lastIndex < line.length) {
-      parts.push(line.slice(lastIndex));
-    }
-
-    // Handle numbered list items
+    if (lastIndex < line.length) parts.push(line.slice(lastIndex));
     const isNumbered = /^\d+\.\s/.test(line);
-    
+    const isBullet = /^[•*-]\s/.test(line);
     return (
       <span key={lineIndex}>
-        {isNumbered ? (
-          <span style={{ display: 'block', paddingLeft: 8, marginBottom: 4 }}>
-            {parts.length > 0 ? parts : line}
-          </span>
-        ) : (
-          <span style={{ display: 'block', marginBottom: line === '' ? 8 : 2 }}>
-            {parts.length > 0 ? parts : line}
-          </span>
-        )}
+        {isNumbered || isBullet
+          ? <span style={{ display: 'block', paddingLeft: 10, marginBottom: 3 }}>{parts.length > 0 ? parts : line}</span>
+          : <span style={{ display: 'block', marginBottom: line === '' ? 8 : 2 }}>{parts.length > 0 ? parts : line}</span>
+        }
       </span>
     );
   });
 }
 
+const cleanModelOutput = (raw: string): string => {
+  let text = raw.replace(/\[SYSTEM:[\s\S]*?\]\s*/gi, '');
+  // Strip any leaked [INSTRUCTION:...] blocks that MedGemma may echo back
+  text = text.replace(/\[INSTRUCTION:[\s\S]*?\]/gi, '');
+  // Strip the injected --- separator block if MedGemma echoes it back
+  text = text.replace(/\n*---\nIf your reply[\s\S]*?question\./gi, '');
+  text = text.replace(/^user[\s\S]*?model\s*/i, '');
+  text = text.replace(/<unused\d+>thought\s*/gi, '');
+  text = text.replace(/Thinking Process:[\s\S]*?(?=\n\nEssentially|\n\nIn summary|\n\nSo,|\n\n[A-Z][a-z]|$)/i, '');
+  text = text.replace(/<[^>]+>/g, '').replace(/^model\s*/i, '').replace(/\n{3,}/g, '\n\n');
+  return text.trim() || 'I could not generate a response.';
+};
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
+// ── Smart Quick-Reply Extractor ───────────────────────────────────────
+// Instead of instructing MedGemma to emit a structured token (unreliable),
+// we detect a symptom-question pattern in whatever MedGemma naturally writes,
+// then serve relevant options from the frontend.
+//
+// Pipeline:
+//  1. Detect if MedGemma is asking about symptoms (regex on response text)
+//  2. Try to extract bullet/numbered list items from the response itself
+//  3. Fall back to curated context-aware presets based on the user query
+//  4. Last-resort: generic allergy symptom list
+const SYMPTOM_QUESTION_RE =
+  /which (of the following |specific |)symptoms|what symptoms|are you (currently |)(experiencing|having|feeling|noticing)|do you (have|notice|feel|experience)|what (are you|do you) (feeling|experiencing|noticing|having)|symptoms (are you|have you|do you)|any of these symptoms|please (let me know|tell me|describe|list)/i;
+
+const CONTEXT_SYMPTOM_PRESETS: Record<string, string[]> = {
+  shellfish: ['Hives', 'Swelling', 'Nausea', 'Difficulty breathing', 'Tingling lips', 'Stomach cramps'],
+  seafood: ['Hives', 'Swelling', 'Nausea', 'Difficulty breathing', 'Tingling lips', 'Stomach cramps'],
+  peanut: ['Hives', 'Throat tightening', 'Swelling', 'Nausea', 'Dizziness', 'Difficulty breathing'],
+  nut: ['Hives', 'Throat tightening', 'Swelling', 'Nausea', 'Dizziness', 'Difficulty breathing'],
+  dairy: ['Bloating', 'Nausea', 'Stomach pain', 'Diarrhea', 'Hives', 'Cramping'],
+  milk: ['Bloating', 'Nausea', 'Stomach pain', 'Diarrhea', 'Hives', 'Cramping'],
+  gluten: ['Bloating', 'Stomach pain', 'Fatigue', 'Rash', 'Nausea', 'Headache'],
+  wheat: ['Bloating', 'Stomach pain', 'Fatigue', 'Rash', 'Nausea', 'Headache'],
+  bee: ['Hives', 'Swelling', 'Dizziness', 'Difficulty breathing', 'Nausea', 'Chest tightness'],
+  sting: ['Hives', 'Swelling', 'Dizziness', 'Difficulty breathing', 'Nausea', 'Chest tightness'],
+  medication: ['Rash', 'Hives', 'Swelling', 'Nausea', 'Dizziness', 'Difficulty breathing'],
+  benadryl: ['Still unwell', 'Drowsiness', 'Hives', 'Swelling', 'Nausea', 'Difficulty breathing'],
+  reaction: ['Hives', 'Itching', 'Swelling', 'Nausea', 'Rash', 'Difficulty breathing'],
+};
+
+const GENERIC_SYMPTOMS = ['Hives', 'Itching', 'Swelling', 'Nausea', 'Rash', 'Difficulty breathing'];
+
+const extractQuickRepliesFromResponse = (
+  responseText: string,
+  userQuery: string,
+): string[] => {
+  // 1 — Is MedGemma asking a symptom question?
+  if (!SYMPTOM_QUESTION_RE.test(responseText)) return [];
+
+  // 2 — Try to pull items from bullet / numbered lists in the response
+  const bulletLines = responseText.match(/(?:^|\n)\s*[-•*‣▪●]\s*([^\n]{3,50})/gm);
+  const numberedLines = responseText.match(/(?:^|\n)\s*\d+[.):]\s*([^\n]{3,50})/gm);
+  const listSource = (bulletLines?.length ?? 0) >= 2 ? bulletLines : (numberedLines?.length ?? 0) >= 2 ? numberedLines : null;
+  if (listSource) {
+    const items = listSource
+      .map(line => line.replace(/^[\s\n]*[-•*‣▪●\d.):\s]+/, '').trim())
+      // Trim any trailing punctuation like bold markers or colons
+      .map(s => s.replace(/[*_:]+$/, '').trim())
+      .filter(s => s.length > 2 && s.length < 45);
+    if (items.length >= 2) return items.slice(0, 6);
+  }
+
+  // 3 — Contextual presets from user query keywords
+  const queryLower = userQuery.toLowerCase();
+  for (const [keyword, preset] of Object.entries(CONTEXT_SYMPTOM_PRESETS)) {
+    if (queryLower.includes(keyword)) return preset;
+  }
+
+  // 4 — Generic fallback
+  return GENERIC_SYMPTOMS;
+};
 
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
+  const [chatHistory, setChatHistory] = useState<HistoryTurn[]>([]);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>('chat');
+  const [hasGreeted, setHasGreeted] = useState(false);
+
+  // Quick-reply checkbox state
+  const [quickReplies, setQuickReplies] = useState<string[]>([]);  // current options shown
+  const [selectedReplies, setSelectedReplies] = useState<Set<string>>(new Set());
+
+  // Voice Settings
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
-  const [transcribing, setTranscribing] = useState(false);
+
+  // Image Upload
+  const [pendingImage, setPendingImage] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const audioChunksRef = useRef<Blob[]>([]);
+  const srRef = useRef<{ stop: () => void } | null>(null);
 
+  // ── Voice Init ──
   useEffect(() => {
     const loadVoices = () => {
       const voices = window.speechSynthesis.getVoices();
       setAvailableVoices(voices);
-      const defaultVoice = voices.find(v => v.lang.startsWith('en-')) || voices[0];
-      setSelectedVoice(defaultVoice);
+      const preferred =
+        voices.find(v => v.name === 'Google UK English Female') ||
+        voices.find(v => v.lang === 'en-GB' && v.name.toLowerCase().includes('female')) ||
+        voices.find(v => v.lang.startsWith('en-')) ||
+        voices[0];
+      setSelectedVoice(preferred ?? null);
     };
     loadVoices();
     window.speechSynthesis.onvoiceschanged = loadVoices;
   }, []);
 
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  useEffect(() => { messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [messages]);
 
-  const speakText = (text: string) => {
-    if ('speechSynthesis' in window) {
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      if (selectedVoice) utterance.voice = selectedVoice;
-      utterance.rate = 0.9;
-      utterance.onstart = () => setIsSpeaking(true);
-      utterance.onend = () => setIsSpeaking(false);
-      window.speechSynthesis.speak(utterance);
-    }
-  };
-
-  const stopSpeaking = () => {
+  // ── speakText ──────────────────────────────────────────────────────────────
+  const speakText = useCallback((text: string) => {
+    if (!('speechSynthesis' in window)) return;
     window.speechSynthesis.cancel();
-    setIsSpeaking(false);
-  };
+    const u = new SpeechSynthesisUtterance(text.slice(0, 500));
+    if (selectedVoice) u.voice = selectedVoice;
+    u.rate = 0.92; u.pitch = 1.05;
+    u.onstart = () => setIsSpeaking(true);
+    u.onend = () => setIsSpeaking(false);
+    window.speechSynthesis.speak(u);
+  }, [selectedVoice]);
 
-  const transcribeAudioWithWhisper = async (audioBlob: Blob) => {
-    setTranscribing(true);
-    try {
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'audio.webm');
-      formData.append('model', 'whisper-1');
-      formData.append('language', 'en');
-      const response = await fetch('https://api.openai.com/v1/audio/transcriptions', {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${OPENAI_API_KEY}` },
-        body: formData,
-      });
-      if (!response.ok) throw new Error('Transcription failed');
-      const data = await response.json();
-      setInputText(data.text);
-    } catch {
-      alert('Failed to transcribe. Check your OpenAI API key.');
-    } finally {
-      setTranscribing(false);
-    }
-  };
+  const stopSpeaking = () => { window.speechSynthesis.cancel(); setIsSpeaking(false); };
 
-  const startRecording = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-      mediaRecorder.ondataavailable = (event) => { audioChunksRef.current.push(event.data); };
-      mediaRecorder.onstop = async () => {
-        const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
-        stream.getTracks().forEach(track => track.stop());
-        await transcribeAudioWithWhisper(audioBlob);
-      };
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch {
-      alert('Could not access microphone');
-    }
-  };
+  // ── Multi-bubble injector ──────────────────────────────────────────────────
+  // Splits text into sentences and pushes each as a separate Message with a
+  // staggered 350ms delay so the chat feels natural and alive.
+  const injectBubbles = useCallback((
+    text: string,
+    source: Message['source'],
+    speakFirst: boolean = false,
+  ) => {
+    const sentences = splitIntoSentences(text);
+    sentences.forEach((sentence, i) => {
+      setTimeout(() => {
+        const msg: Message = {
+          id: `${Date.now()}-${i}`,
+          role: 'assistant',
+          content: sentence,
+          timestamp: new Date(),
+          source,
+        };
+        setMessages(prev => [...prev, msg]);
+        if (speakFirst && i === 0) speakText(sentence);
+      }, i * 350);
+    });
+  }, [speakText]);
 
-  const stopRecording = () => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-    }
-  };
-
-  const cleanModelOutput = (raw: string): string => {
-  let text = raw;
-
-  // Remove "user ... model" prefix (everything before actual response)
-  text = text.replace(/^user[\s\S]*?model\s*/i, '');
-
-  // Remove <unusedXX>thought blocks
-  text = text.replace(/<unused\d+>thought\s*/gi, '');
-
-  // Remove full "Thinking Process: 1. 2. 3..." blocks
-  text = text.replace(/Thinking Process:[\s\S]*?(?=\n\nEssentially|\n\nIn summary|\n\nSo,|\n\n[A-Z][a-z]|$)/i, '');
-
-  // Remove any remaining <tokens>
-  text = text.replace(/<[^>]+>/g, '');
-
-  // Remove leftover "model" at start
-  text = text.replace(/^model\s*/i, '');
-
-  // Collapse 3+ newlines into 2
-  text = text.replace(/\n{3,}/g, '\n\n');
-
-  return text.trim() || 'I could not generate a response. Please try again.';
-};
-
-  const sendMessage = async () => {
-  if (!inputText.trim() || loading) return;
-  const userMessage: Message = { 
-    id: Date.now().toString(), 
-    role: 'user', 
-    content: inputText.trim(), 
-    timestamp: new Date() 
-  };
-  setMessages(prev => [...prev, userMessage]);
-  setInputText('');
-  setLoading(true);
-  
-  try {
-    const result = await client.queries.askMedGemma({ question: userMessage.content });
-    const rawResponse = result.data || 'I apologize, but I could not generate a response.';
-    
-    // ✅ Clean the raw model output
-    const cleanResponse = cleanModelOutput(typeof rawResponse === 'string' ? rawResponse : String(rawResponse));
-    
-    const assistantMessage: Message = {
-      id: (Date.now() + 1).toString(), 
-      role: 'assistant',
-      content: cleanResponse,
-      timestamp: new Date(),
+  // ── Nova Micro Greeting ────────────────────────────────────────────────────
+  useEffect(() => {
+    if (hasGreeted) return;
+    const greet = async () => {
+      try {
+        setHasGreeted(true);
+        const result = await client.queries.askNovaMicro({
+          question: 'Greet the user warmly. Max 8 words.',
+          history: '[]',
+        });
+        const greetText = String(result.data ?? "Hey! How can I help?").trim();
+        const greetMsg: Message = {
+          id: `greet-${Date.now()}`,
+          role: 'assistant',
+          content: greetText,
+          timestamp: new Date(),
+          source: 'nova',
+        };
+        setMessages([greetMsg]);
+        speakText(greetText);
+      } catch (e) {
+        console.warn('Nova Micro greeting failed', e);
+        setMessages([{
+          id: 'greet-fallback',
+          role: 'assistant',
+          content: "Hi! I'm Immuny. Ask me anything.",
+          timestamp: new Date(),
+          source: 'nova',
+        }]);
+      }
     };
-    setMessages(prev => [...prev, assistantMessage]);
-    speakText(assistantMessage.content);
-  } catch (error) {
-    console.error('Error:', error);
-  } finally {
-    setLoading(false);
-  }
-};
+    greet();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // ── DynamoDB Event Logger (non-blocking) ──────────────────────────────────
+  const logEvent = useCallback(async (
+    userId: string,
+    type: 'user_query' | 'medical_response' | 'nova_reply' | 'image_analysis',
+    payload: Record<string, unknown>,
+  ) => {
+    try {
+      const event = JSON.stringify({ type, ts: new Date().toISOString(), ...payload });
+      await client.queries.logConversationEvent({ userId, event });
+    } catch (e) {
+      console.warn('logEvent failed (non-blocking)', e);
+    }
+  }, []);
+
+  // ── Voice Handlers ──
+  const startRecording = () => {
+    type SREvent = { results: { [k: number]: { [k: number]: { transcript: string } } } };
+    type SRConstructor = new () => {
+      lang: string; continuous: boolean; interimResults: boolean;
+      start(): void; stop(): void;
+      onresult: ((e: SREvent) => void) | null;
+      onend: (() => void) | null;
+    };
+    const win = window as Window & { SpeechRecognition?: SRConstructor; webkitSpeechRecognition?: SRConstructor };
+    const SR = win.SpeechRecognition || win.webkitSpeechRecognition;
+    if (!SR) return alert('Voice input not supported. Please use Chrome.');
+    const rec = new SR();
+    rec.lang = 'en-US'; rec.continuous = false; rec.interimResults = false;
+    rec.onresult = (e) => setInputText(prev => prev ? prev + ' ' + e.results[0][0].transcript : e.results[0][0].transcript);
+    rec.onend = () => setIsRecording(false);
+    rec.start(); srRef.current = rec; setIsRecording(true);
+  };
+  const stopRecording = () => { srRef.current?.stop(); setIsRecording(false); };
+
+  // ── Image Handlers ──
+  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setPendingImage(file);
+    const reader = new FileReader();
+    reader.onload = ev => setImagePreview(ev.target?.result as string);
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+  const clearImage = () => { setPendingImage(null); setImagePreview(null); };
+
+  // ── THE AGENTIC ROUTER ──────────────────────────────────────────────────────
+  //
+  //  Image        → MedGemma vision     (Colab /analyse-image)
+  //  Medical text → MedGemma /agent/ask (Colab, with chat history context)
+  //  Casual text  → Nova Micro          (AWS Bedrock, ≤8 words)
+  //
+  //  Every response is sentence-split into separate chat bubbles.
+  //  All interactions are logged to DynamoDB via logConversationEvent.
+  //
+  // ── Submit selected quick-reply checkboxes as a user message ─────────────
+  const submitQuickReplies = async () => {
+    if (selectedReplies.size === 0) return;
+    const text = `I am experiencing: ${[...selectedReplies].join(', ')}`;
+    setQuickReplies([]);
+    setSelectedReplies(new Set());
+    setInputText(text);
+    // Use a tiny timeout so inputText state settles before sendMessage reads it
+    setTimeout(() => {
+      void sendMessageWithText(text);
+    }, 0);
+  };
+
+  const sendMessage = async () => sendMessageWithText(inputText);
+
+  const sendMessageWithText = async (overrideText?: string) => {
+    const rawText = overrideText ?? inputText;
+    const hasText = rawText.trim().length > 0;
+    const hasImage = pendingImage !== null;
+    if ((!hasText && !hasImage) || loading) return;
+
+    const userContent = hasText ? rawText.trim() : '📷 What do you see in this image?';
+    const userMsg: Message = {
+      id: Date.now().toString(),
+      role: 'user',
+      content: userContent,
+      timestamp: new Date(),
+      imagePreview: imagePreview ?? undefined,
+    };
+
+    setMessages(prev => [...prev, userMsg]);
+    setInputText('');
+    setQuickReplies([]);
+    setSelectedReplies(new Set());
+    setLoading(true);
+    const capturedImage = pendingImage;
+    clearImage();
+
+    // Stamp userId from Amplify Authenticator
+    const userId = document.body.dataset.userId ?? 'anonymous';
+
+    // Keep a rolling 10-turn history for MedGemma context
+    const historySnapshot: HistoryTurn[] = [
+      ...chatHistory,
+      { role: 'user' as const, content: userContent },
+    ].slice(-10);
+
+    try {
+      let responseText = '';
+      let source: Message['source'] = 'nova';
+
+      // ── RULE 1: Image → MedGemma Vision ──────────────────────────────────
+      if (capturedImage) {
+        source = 'medgemma';
+        const b64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onload = e => resolve((e.target?.result as string).split(',')[1]);
+          reader.onerror = reject;
+          reader.readAsDataURL(capturedImage);
+        });
+        const res = await fetch(IMAGE_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ image_b64: b64, question: userContent }),
+        });
+        const data = await res.json() as { response?: string; error?: string };
+        responseText = res.ok
+          ? cleanModelOutput(data.response ?? '')
+          : `Image Error: ${data.error ?? 'Unknown'}`;
+
+        void logEvent(userId, 'image_analysis', {
+          question: userContent,
+          response_preview: responseText.slice(0, 120),
+        });
+      }
+
+      // ── RULE 2: Medical text → MedGemma /agent/ask ───────────────────────
+      else if (isMedicalQuery(userContent)) {
+        source = 'medgemma';
+        console.log('🩺 Medical query → MedGemma');
+
+        void logEvent(userId, 'user_query', { text: userContent, routed_to: 'medgemma' });
+
+        // No prompt injection needed — symptom options are detected from the
+        // natural language response on the frontend (see extractQuickRepliesFromResponse).
+        const res = await fetch(AGENT_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            question: userContent,
+            history: historySnapshot.slice(-10),
+            biometrics: null,
+          }),
+        });
+
+        if (res.ok) {
+          const data = await res.json() as { response?: string; error?: string };
+          responseText = cleanModelOutput(data.response ?? '');
+        } else {
+          try {
+            const data = await res.json() as { error?: string };
+            responseText = `MedGemma Error: ${data.error ?? 'Unknown'}`;
+          } catch {
+            responseText = 'Connection Error: Is Colab running? Ngrok URL correct?';
+          }
+        }
+
+        // Detect symptom questions and surface contextual quick-reply chips
+        const options = extractQuickRepliesFromResponse(responseText, userContent);
+        if (options.length > 0) {
+          // Defer so the bubbles render first, then show the panel
+          const delay = splitIntoSentences(responseText).length * 350 + 200;
+          setTimeout(() => setQuickReplies(options), delay);
+        }
+
+        void logEvent(userId, 'medical_response', {
+          question: userContent,
+          response_preview: responseText.slice(0, 120),
+        });
+      }
+
+      // ── RULE 3: Casual text → Nova Micro (≤ 8 words) ─────────────────────
+      else {
+        source = 'nova';
+        console.log('⚡ Casual query → Nova Micro');
+
+        const result = await client.queries.askNovaMicro({
+          question: userContent,
+          history: JSON.stringify(chatHistory.slice(-6)),
+        });
+        responseText = cleanModelOutput(String(result.data ?? '').trim())
+          || "I'm not sure, ask your doctor!";
+
+        void logEvent(userId, 'nova_reply', {
+          question: userContent,
+          response: responseText,
+        });
+      }
+
+      // ── Inject multi-bubble response ────────────────────────────────────
+      // Each sentence becomes its own chat bubble with a 350ms stagger
+      injectBubbles(responseText, source, true);
+
+      // ── Update rolling chat history ─────────────────────────────────────
+      setChatHistory(prev => [
+        ...prev,
+        { role: 'user', content: userContent },
+        { role: 'assistant', content: responseText },
+      ].slice(-20) as HistoryTurn[]); // keep last 20 turns
+
+    } catch (err: unknown) {
+      console.error('sendMessage error:', err);
+      setMessages(prev => [...prev, {
+        id: Date.now().toString(),
+        role: 'assistant',
+        content: `Network Error: ${err instanceof Error ? err.message : String(err)}`,
+        timestamp: new Date(),
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const navigateTo = (page: Page) => { setCurrentPage(page); setMenuOpen(false); };
 
+  // ── Chat UI ────────────────────────────────────────────────────────────────
   const renderChat = () => (
     <>
       <div className="chat-messages">
@@ -978,36 +534,92 @@ export default function App() {
             <img src={immunyLogo} alt="Immuny" className="bot-logo-large" />
             <h2>Immuny</h2>
             <p className="tagline">ALLERGY AI ALLY</p>
-            <p className="subtitle">How are you feeling today?</p>
             <div className="quick-actions">
               <button onClick={() => setInputText('Any allergy symptoms to check on?')}>🤧 Check allergies</button>
-              <button onClick={() => setInputText("Don't switch to strawberries?")}>🍓 Food allergies</button>
-              <button onClick={() => setInputText('What do you have for lunch?')}>🍽️ Lunch advice</button>
+              <button onClick={() => setInputText('Is it safe to eat strawberries with my allergy?')}>🍓 Food allergies</button>
+              <button onClick={() => setInputText('What should I do during an allergic reaction?')}>🏥 Reaction guide</button>
             </div>
           </div>
         ) : (
-          messages.map((msg) => (
-            <div key={msg.id} className={`message-bubble ${msg.role}`}>
-              {msg.role === 'assistant' && <img src={immunyLogo} alt="Immuny" className="message-avatar" />}
-              <div className="message-content">
-                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>
-                  {renderMarkdown(msg.content)}
+          messages.map((msg, idx) => {
+            const isLastAssistant =
+              msg.role === 'assistant' &&
+              idx === messages.length - 1 &&
+              !loading &&
+              quickReplies.length > 0;
+            return (
+              <div key={msg.id} className={`message-bubble ${msg.role}`}>
+                {msg.role === 'assistant' && (
+                  <img src={immunyLogo} alt="Immuny" className="message-avatar" />
+                )}
+                <div className="message-content">
+                  {/* Source badge */}
+                  {msg.role === 'assistant' && msg.source && (
+                    <div style={{
+                      fontSize: 10, fontWeight: 700, marginBottom: 3,
+                      color: msg.source === 'medgemma' ? '#7C3AED' : '#0369A1',
+                    }}>
+                      {msg.source === 'medgemma' ? '🔬 MedGemma' : '⚡ Nova Micro'}
+                    </div>
+                  )}
+                  {msg.imagePreview && (
+                    <img src={msg.imagePreview} alt="Uploaded"
+                      style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, marginBottom: 6, display: 'block' }} />
+                  )}
+                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{renderMarkdown(msg.content)}</div>
+                  <span className="message-time">{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+
+                  {/* ── Quick-reply checkbox panel ────────────────────────── */}
+                  {isLastAssistant && (
+                    <div className="quick-reply-panel">
+                      <p className="quick-reply-label">Select all that apply:</p>
+                      <div className="quick-reply-chips">
+                        {quickReplies.map(opt => {
+                          const checked = selectedReplies.has(opt);
+                          return (
+                            <button
+                              key={opt}
+                              className={`quick-reply-chip${checked ? ' selected' : ''}`}
+                              onClick={() => {
+                                setSelectedReplies(prev => {
+                                  const next = new Set(prev);
+                                  if (next.has(opt)) next.delete(opt); else next.add(opt);
+                                  return next;
+                                });
+                              }}
+                            >
+                              <span className="chip-checkbox">{checked ? '✓' : ''}</span>
+                              {opt}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      <div className="quick-reply-actions">
+                        <button
+                          className="quick-reply-submit"
+                          disabled={selectedReplies.size === 0}
+                          onClick={() => void submitQuickReplies()}
+                        >
+                          Submit {selectedReplies.size > 0 ? `(${selectedReplies.size})` : ''}
+                        </button>
+                        <button
+                          className="quick-reply-skip"
+                          onClick={() => { setQuickReplies([]); setSelectedReplies(new Set()); }}
+                        >
+                          None / Skip
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
-                <span className="message-time">{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
-            </div>
-          ))
+            );
+          })
         )}
         {loading && (
           <div className="message-bubble assistant">
             <img src={immunyLogo} alt="Immuny" className="message-avatar" />
             <div className="message-content typing"><span /><span /><span /></div>
-          </div>
-        )}
-        {transcribing && (
-          <div className="transcribing-indicator">
-            <span className="pulse-dot" />
-            Transcribing audio...
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -1016,21 +628,42 @@ export default function App() {
       <div className="chat-input-container">
         {isSpeaking && (
           <div className="speaking-banner">
-            <span>🔊 Speaking with {selectedVoice?.name || 'default voice'}...</span>
+            <span>🔊 Speaking ({selectedVoice?.name || 'Default Voice'})…</span>
             <button onClick={stopSpeaking}>Stop</button>
           </div>
         )}
+        {imagePreview && (
+          <div style={{
+            display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
+            background: '#fff', borderRadius: 8, marginBottom: 8, border: '1px solid #4A7BA7',
+          }}>
+            <img src={imagePreview} alt="Selected" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6 }} />
+            <span style={{ flex: 1, fontSize: 12, color: '#4A7BA7', fontWeight: 600 }}>
+              📷 Image ready — add a question or press send
+            </span>
+            <button onClick={clearImage}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#DC2626' }}>✕</button>
+          </div>
+        )}
         <div className="input-bar">
+          <input type="file" accept="image/*" ref={imageInputRef} onChange={handleImageSelect} style={{ display: 'none' }} />
           <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className="settings-btn" title="Voice settings">⚙️</button>
-          <input type="text" value={inputText} onChange={(e) => setInputText(e.target.value)}
-            onKeyPress={(e) => e.key === 'Enter' && !e.shiftKey && sendMessage()}
-            placeholder={transcribing ? 'Transcribing...' : 'Type a message...'}
-            disabled={transcribing} className="message-input" />
+          <button onClick={() => imageInputRef.current?.click()} className="settings-btn" title="Upload a photo"
+            style={{ background: imagePreview ? '#4A7BA7' : 'white', color: imagePreview ? 'white' : '#4A7BA7', fontSize: '1.3rem' }}>📷</button>
+          <input
+            type="text"
+            value={inputText}
+            onChange={e => setInputText(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && !e.shiftKey && void sendMessage()}
+            placeholder={isRecording ? 'Listening...' : imagePreview ? 'Ask about the image…' : 'Type a message…'}
+            className="message-input"
+          />
           <button onClick={isRecording ? stopRecording : startRecording}
-            className={`voice-btn ${isRecording ? 'recording' : ''}`} disabled={transcribing}>
+            className={`voice-btn ${isRecording ? 'recording' : ''}`}
+            title={isRecording ? 'Stop' : 'Voice input'}>
             {isRecording ? '⏹️' : '🎤'}
           </button>
-          <button onClick={sendMessage} disabled={!inputText.trim()} className="send-btn">➤</button>
+          <button onClick={() => void sendMessage()} disabled={(!inputText.trim() && !pendingImage) || loading} className="send-btn">➤</button>
         </div>
       </div>
 
@@ -1052,13 +685,13 @@ export default function App() {
                 ))}
               </select>
               <div className="voice-test">
-                <button onClick={() => speakText('Hello! This is Immuny, your allergy AI ally.')} className="test-voice-btn">
-                  🔊 Test Voice
-                </button>
+                <button onClick={() => speakText("Hello! This is Immuny, your allergy AI ally.")} className="test-voice-btn">🔊 Test Voice</button>
               </div>
               <div className="api-info">
-                <p><strong>Speech-to-Text:</strong> Powered by OpenAI Whisper</p>
-                <p className="info-note">⚠️ Set your OpenAI API key in the code</p>
+                <p><strong>LLM Router:</strong></p>
+                <p className="info-note">⚡ Nova Micro — casual &amp; greetings (≤8 words)</p>
+                <p className="info-note">🔬 MedGemma — medical queries (detailed)</p>
+                <p className="info-note">📷 MedGemma Vision — image analysis</p>
               </div>
             </div>
           </div>
@@ -1078,63 +711,44 @@ export default function App() {
 
   return (
     <Authenticator>
-      {({ signOut, user }) => (
-        <div className="app-container">
-          <div className={`sidebar ${menuOpen ? 'open' : ''}`}>
-            <div className="sidebar-header">
-              <img src={immunyLogo} alt="Immuny" className="sidebar-logo" />
-              <div>
+      {({ signOut, user }) => {
+        if (user?.userId) document.body.dataset.userId = user.userId;
+        return (
+          <div className="app-container">
+            <div className={`sidebar ${menuOpen ? 'open' : ''}`}>
+              <div className="sidebar-header">
+                <img src={immunyLogo} alt="Immuny" className="sidebar-logo" />
                 <h2>Immuny</h2>
-                <p className="sidebar-tagline">Allergy AI Ally</p>
+                <button onClick={() => setMenuOpen(false)}>✕</button>
               </div>
-              <button onClick={() => setMenuOpen(false)}>✕</button>
+              <nav>
+                <button className={currentPage === 'chat' ? 'active' : ''} onClick={() => navigateTo('chat')}>💬 Ask Immuny</button>
+                <button className={currentPage === 'symptom-logger' ? 'active' : ''} onClick={() => navigateTo('symptom-logger')}>📋 Health Logger</button>
+                <button className={currentPage === 'exposure-testing' ? 'active' : ''} onClick={() => navigateTo('exposure-testing')}>🧪 Exposure Testing</button>
+                <button className={currentPage === 'profile' ? 'active' : ''} onClick={() => navigateTo('profile')}>👤 Profile</button>
+              </nav>
+              <div className="sidebar-footer">
+                <p>{user?.signInDetails?.loginId}</p>
+                <button onClick={signOut}>Sign Out</button>
+              </div>
             </div>
-            <nav>
-              <button className={currentPage === 'chat' ? 'active' : ''} onClick={() => navigateTo('chat')}>💬 Ask Immuny</button>
-              <button className={currentPage === 'symptom-logger' ? 'active' : ''} onClick={() => navigateTo('symptom-logger')}>📋 Health Logger</button>
-              <button className={currentPage === 'exposure-testing' ? 'active' : ''} onClick={() => navigateTo('exposure-testing')}>🧪 Exposure Testing</button>
-              <button className={currentPage === 'profile' ? 'active' : ''} onClick={() => navigateTo('profile')}>👤 Profile</button>
-            </nav>
-            <div className="sidebar-footer">
-              <p>{user?.signInDetails?.loginId}</p>
-              <button onClick={signOut}>Sign Out</button>
-            </div>
-          </div>
 
-          {menuOpen && <div className="overlay" onClick={() => setMenuOpen(false)} />}
-
-          <div className="main-content">
-            <header className="chat-header">
-              <button onClick={() => setMenuOpen(true)} className="menu-btn">☰</button>
-              <div className="header-title">
-                <img src={immunyLogo} alt="Immuny" className="header-logo" />
-                <div>
-                  <h1>Immuny AI</h1>
-                  <p>Allergy AI Ally • Voice: {selectedVoice?.name?.split(' ')[0] || 'Default'}</p>
+            <div className="main-content">
+              <header className="chat-header">
+                <button onClick={() => setMenuOpen(true)} className="menu-btn">☰</button>
+                <div className="header-title">
+                  <img src={immunyLogo} alt="Immuny" className="header-logo" />
+                  <div>
+                    <h1>Immuny AI</h1>
+                    <p> {selectedVoice?.name?.replace('Google ', '').split(' ').slice(0, 3).join(' ') || 'Default'}</p>
+                  </div>
                 </div>
-              </div>
-            </header>
-            {renderContent()}
+              </header>
+              {renderContent()}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      }}
     </Authenticator>
-  );
-}
-
-function ProfilePage() {
-  return (
-    <div className="page-container">
-      <h2>👤 Profile</h2>
-      <div className="form-group">
-        <label>Full Name</label>
-        <input type="text" placeholder="Enter your name" />
-      </div>
-      <div className="form-group">
-        <label>Age</label>
-        <input type="number" placeholder="Enter your age" />
-      </div>
-      <button className="save-btn">Save Profile</button>
-    </div>
   );
 }

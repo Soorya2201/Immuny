@@ -1,5 +1,5 @@
 {
- "Description": "{\"createdOn\":\"Mac\",\"createdBy\":\"AmplifySandbox\",\"createdWith\":\"1.11.1\",\"stackType\":\"auth-Cognito\",\"metadata\":{}}",
+ "Description": "{\"createdOn\":\"Mac\",\"createdBy\":\"AmplifySandbox\",\"createdWith\":\"1.11.2\",\"stackType\":\"auth-Cognito\",\"metadata\":{}}",
  "Resources": {
   "amplifyAuthUserPool4BA7F805": {
    "Type": "AWS::Cognito::UserPool",
@@ -301,7 +301,7 @@
   "CDKMetadata": {
    "Type": "AWS::CDK::Metadata",
    "Properties": {
-    "Analytics": "v2:deflate64:H4sIAAAAAAAA/02OuQ7CMBBEv4XeWYKhoEWpaFAURI2MvcAmPqTYgJDlf8cWCqSa2Td7ceDrLdQL8fKVVEOl6QLxgD6gOgYhB5aDc5TuZik4iCePY+ucZs3V/vxkGk1owzz6k73KhsJ7Gp7XndO4C/na3WSYGAkDscDSWDSlxKxTCL1fPvkGVnX+uPdE1fjIWwxC99UP9gB9Ts4AAAA="
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/02OywrCMBBFv8V9OtbYH5Cu3Ii0uJaYjDptHtBERUL+3QSpdnXvnDsvDrzZQr0SL19JNVaaLhAP6AOqPgg5shyco3Q3S8FBPHmcjs5p1l7tz8+m1YQ2LKM/2atsKLzn4WXdOY27kK/dTYaJkTAQCyyNRVNKzDqFMPj1kzewqfPHgyeqpkfeYhC6r34ASY6naM4AAAA="
    },
    "Metadata": {
     "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/auth/CDKMetadata/Default"

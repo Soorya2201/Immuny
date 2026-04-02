@@ -17,6 +17,9 @@
   "devDependencies": {
     "@aws-amplify/backend": "^1.0.0",
     "@aws-amplify/backend-cli": "^1.0.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1007.0",
+    "@aws-sdk/client-dynamodb": "^3.1007.0",
+    "@types/node": "^25.4.0",
     "typescript": "^5.0.0"
   }
 }

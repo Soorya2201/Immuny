@@ -1,7 +1,7 @@
 {
  "Description": "{\"createdOn\":\"Mac\",\"createdBy\":\"AmplifySandbox\",\"createdWith\":\"1.17.0\",\"stackType\":\"function-Lambda\",\"metadata\":{}}",
  "Resources": {
-  "handlerlambdaServiceRole46D7AF61": {
+  "askMedGemmalambdaServiceRole83A5B48F": {
    "Type": "AWS::IAM::Role",
    "Properties": {
     "AssumeRolePolicyDocument": {
@@ -37,7 +37,7 @@
      },
      {
       "Key": "amplify:friendly-name",
-      "Value": "handler"
+      "Value": "askMedGemma"
      },
      {
       "Key": "created-by",
@@ -48,10 +48,10 @@
    "UpdateReplacePolicy": "Delete",
    "DeletionPolicy": "Delete",
    "Metadata": {
-    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/handler-lambda/ServiceRole/Resource"
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/askMedGemma-lambda/ServiceRole/Resource"
    }
   },
-  "handlerlambdaServiceRoleDefaultPolicy3DA67D31": {
+  "askMedGemmalambdaServiceRoleDefaultPolicy3132A277": {
    "Type": "AWS::IAM::Policy",
    "Properties": {
     "PolicyDocument": {
@@ -64,20 +64,20 @@
      ],
      "Version": "2012-10-17"
     },
-    "PolicyName": "handlerlambdaServiceRoleDefaultPolicy3DA67D31",
+    "PolicyName": "askMedGemmalambdaServiceRoleDefaultPolicy3132A277",
     "Roles": [
      {
-      "Ref": "handlerlambdaServiceRole46D7AF61"
+      "Ref": "askMedGemmalambdaServiceRole83A5B48F"
      }
     ]
    },
    "UpdateReplacePolicy": "Delete",
    "DeletionPolicy": "Delete",
    "Metadata": {
-    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/handler-lambda/ServiceRole/DefaultPolicy/Resource"
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/askMedGemma-lambda/ServiceRole/DefaultPolicy/Resource"
    }
   },
-  "handlerlambdaE29D1580": {
+  "askMedGemmalambda7C603B1E": {
    "Type": "AWS::Lambda::Function",
    "Properties": {
     "Architectures": [
@@ -87,7 +87,7 @@
      "S3Bucket": {
       "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
      },
-     "S3Key": "b7602630a4ed0016508aca20faadc969912a40955415ad259d109c8ef0b9d4e2.zip"
+     "S3Key": "03b6f208367be8d01385aae1b3ebc8bff81f1d6d3584f65def084f8a047ab060.zip"
     },
     "Environment": {
      "Variables": {
@@ -101,11 +101,11 @@
     "MemorySize": 512,
     "Role": {
      "Fn::GetAtt": [
-      "handlerlambdaServiceRole46D7AF61",
+      "askMedGemmalambdaServiceRole83A5B48F",
       "Arn"
      ]
     },
-    "Runtime": "nodejs22.x",
+    "Runtime": "nodejs20.x",
     "Tags": [
      {
       "Key": "amplify:deployment-type",
@@ -113,7 +113,7 @@
      },
      {
       "Key": "amplify:friendly-name",
-      "Value": "handler"
+      "Value": "askMedGemma"
      },
      {
       "Key": "created-by",
@@ -123,14 +123,416 @@
     "Timeout": 90
    },
    "DependsOn": [
-    "handlerlambdaServiceRoleDefaultPolicy3DA67D31",
-    "handlerlambdaServiceRole46D7AF61"
+    "askMedGemmalambdaServiceRoleDefaultPolicy3132A277",
+    "askMedGemmalambdaServiceRole83A5B48F"
    ],
    "UpdateReplacePolicy": "Delete",
    "DeletionPolicy": "Delete",
    "Metadata": {
-    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/handler-lambda/Resource",
-    "aws:asset:path": "asset.b7602630a4ed0016508aca20faadc969912a40955415ad259d109c8ef0b9d4e2",
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/askMedGemma-lambda/Resource",
+    "aws:asset:path": "asset.03b6f208367be8d01385aae1b3ebc8bff81f1d6d3584f65def084f8a047ab060",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "askNovaMicrolambdaServiceRole3E37CA31": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "amplify:deployment-type",
+      "Value": "sandbox"
+     },
+     {
+      "Key": "amplify:friendly-name",
+      "Value": "askNovaMicro"
+     },
+     {
+      "Key": "created-by",
+      "Value": "amplify"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/askNovaMicro-lambda/ServiceRole/Resource"
+   }
+  },
+  "askNovaMicrolambdaServiceRoleDefaultPolicy1EE0B235": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "bedrock:InvokeModel",
+       "Effect": "Allow",
+       "Resource": "arn:aws:bedrock:*::foundation-model/amazon.nova-micro-v1:0"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "askNovaMicrolambdaServiceRoleDefaultPolicy1EE0B235",
+    "Roles": [
+     {
+      "Ref": "askNovaMicrolambdaServiceRole3E37CA31"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/askNovaMicro-lambda/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "askNovaMicrolambdaB8037DA5": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Architectures": [
+     "x86_64"
+    ],
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "1e8c650b3cfbfc31898af64f7a33572010ddb2e47896b04caa65c468f0694500.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "AMPLIFY_SSM_ENV_CONFIG": "{}"
+     }
+    },
+    "EphemeralStorage": {
+     "Size": 512
+    },
+    "Handler": "index.handler",
+    "MemorySize": 256,
+    "Role": {
+     "Fn::GetAtt": [
+      "askNovaMicrolambdaServiceRole3E37CA31",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs20.x",
+    "Tags": [
+     {
+      "Key": "amplify:deployment-type",
+      "Value": "sandbox"
+     },
+     {
+      "Key": "amplify:friendly-name",
+      "Value": "askNovaMicro"
+     },
+     {
+      "Key": "created-by",
+      "Value": "amplify"
+     }
+    ],
+    "Timeout": 30
+   },
+   "DependsOn": [
+    "askNovaMicrolambdaServiceRoleDefaultPolicy1EE0B235",
+    "askNovaMicrolambdaServiceRole3E37CA31"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/askNovaMicro-lambda/Resource",
+    "aws:asset:path": "asset.1e8c650b3cfbfc31898af64f7a33572010ddb2e47896b04caa65c468f0694500",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "logConversationEventlambdaServiceRole9FEE0084": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "amplify:deployment-type",
+      "Value": "sandbox"
+     },
+     {
+      "Key": "amplify:friendly-name",
+      "Value": "logConversationEvent"
+     },
+     {
+      "Key": "created-by",
+      "Value": "amplify"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/logConversationEvent-lambda/ServiceRole/Resource"
+   }
+  },
+  "logConversationEventlambdaServiceRoleDefaultPolicyEF54FB21": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "dynamodb:PutItem",
+       "Effect": "Allow",
+       "Resource": "*"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "logConversationEventlambdaServiceRoleDefaultPolicyEF54FB21",
+    "Roles": [
+     {
+      "Ref": "logConversationEventlambdaServiceRole9FEE0084"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/logConversationEvent-lambda/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "logConversationEventlambdaE4EEE836": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Architectures": [
+     "x86_64"
+    ],
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "ac535a059444195a70fb265725911a4013b550576eb21de71ebc3ade57e3ec34.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "AMPLIFY_SSM_ENV_CONFIG": "{}"
+     }
+    },
+    "EphemeralStorage": {
+     "Size": 512
+    },
+    "Handler": "index.handler",
+    "MemorySize": 128,
+    "Role": {
+     "Fn::GetAtt": [
+      "logConversationEventlambdaServiceRole9FEE0084",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs20.x",
+    "Tags": [
+     {
+      "Key": "amplify:deployment-type",
+      "Value": "sandbox"
+     },
+     {
+      "Key": "amplify:friendly-name",
+      "Value": "logConversationEvent"
+     },
+     {
+      "Key": "created-by",
+      "Value": "amplify"
+     }
+    ],
+    "Timeout": 10
+   },
+   "DependsOn": [
+    "logConversationEventlambdaServiceRoleDefaultPolicyEF54FB21",
+    "logConversationEventlambdaServiceRole9FEE0084"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/logConversationEvent-lambda/Resource",
+    "aws:asset:path": "asset.ac535a059444195a70fb265725911a4013b550576eb21de71ebc3ade57e3ec34",
+    "aws:asset:is-bundled": true,
+    "aws:asset:property": "Code"
+   }
+  },
+  "getConversationLogslambdaServiceRole53450D8F": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "lambda.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "ManagedPolicyArns": [
+     {
+      "Fn::Join": [
+       "",
+       [
+        "arn:",
+        {
+         "Ref": "AWS::Partition"
+        },
+        ":iam::aws:policy/service-role/AWSLambdaBasicExecutionRole"
+       ]
+      ]
+     }
+    ],
+    "Tags": [
+     {
+      "Key": "amplify:deployment-type",
+      "Value": "sandbox"
+     },
+     {
+      "Key": "amplify:friendly-name",
+      "Value": "getConversationLogs"
+     },
+     {
+      "Key": "created-by",
+      "Value": "amplify"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/getConversationLogs-lambda/ServiceRole/Resource"
+   }
+  },
+  "getConversationLogslambdaServiceRoleDefaultPolicy0B9FDE18": {
+   "Type": "AWS::IAM::Policy",
+   "Properties": {
+    "PolicyDocument": {
+     "Statement": [
+      {
+       "Action": "dynamodb:Query",
+       "Effect": "Allow",
+       "Resource": "*"
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "PolicyName": "getConversationLogslambdaServiceRoleDefaultPolicy0B9FDE18",
+    "Roles": [
+     {
+      "Ref": "getConversationLogslambdaServiceRole53450D8F"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/getConversationLogs-lambda/ServiceRole/DefaultPolicy/Resource"
+   }
+  },
+  "getConversationLogslambdaAC1FF27A": {
+   "Type": "AWS::Lambda::Function",
+   "Properties": {
+    "Architectures": [
+     "x86_64"
+    ],
+    "Code": {
+     "S3Bucket": {
+      "Fn::Sub": "cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}"
+     },
+     "S3Key": "d27d03d471a03cb9ac36d1a510ac93120bac20343fae8c92c735ea093fc09af6.zip"
+    },
+    "Environment": {
+     "Variables": {
+      "AMPLIFY_SSM_ENV_CONFIG": "{}"
+     }
+    },
+    "EphemeralStorage": {
+     "Size": 512
+    },
+    "Handler": "index.handler",
+    "MemorySize": 128,
+    "Role": {
+     "Fn::GetAtt": [
+      "getConversationLogslambdaServiceRole53450D8F",
+      "Arn"
+     ]
+    },
+    "Runtime": "nodejs20.x",
+    "Tags": [
+     {
+      "Key": "amplify:deployment-type",
+      "Value": "sandbox"
+     },
+     {
+      "Key": "amplify:friendly-name",
+      "Value": "getConversationLogs"
+     },
+     {
+      "Key": "created-by",
+      "Value": "amplify"
+     }
+    ],
+    "Timeout": 10
+   },
+   "DependsOn": [
+    "getConversationLogslambdaServiceRoleDefaultPolicy0B9FDE18",
+    "getConversationLogslambdaServiceRole53450D8F"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/getConversationLogs-lambda/Resource",
+    "aws:asset:path": "asset.d27d03d471a03cb9ac36d1a510ac93120bac20343fae8c92c735ea093fc09af6",
     "aws:asset:is-bundled": true,
     "aws:asset:property": "Code"
    }
@@ -138,7 +540,7 @@
   "CDKMetadata": {
    "Type": "AWS::CDK::Metadata",
    "Properties": {
-    "Analytics": "v2:deflate64:H4sIAAAAAAAA/zWOwQ6CMBBEv8X7siJ48ComHonBDyClXclCaRO2aAzh3y0QT28nM5mdDLP8gulBfSTRpk8sNziXJIHMMyjdQzTq2aqhMap23lAnWG64T04H9g5YDThX3hLcXm7jw1vW31Xu1wKS10qEguB1RdRYTLqnUCgh2Osx5v+lC2y5OKFl1y6wfsZOju/sjKc07u2EORknF3ggrHb+AGeXWtfMAAAA"
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/zWOUQqDMBBEz9L/dWvVC9RCP0XsASQmW1mNCXRjSxHv3qj06+0ww+xkmBU5pif1kUSbMbHc4VKRBDKPoPQI0WgXq6bOqNZ5Q4NgteM+Ox3YO2A14dJ4S3B7up21t6y/mzyuFSRvlQgFweuGqLGc9UihVEJw1GPM/0tX2HNxQs+uX2H7jIOc31mBlzTuHYQ5ec0u8ETYHPwB5aur38wAAAA="
    },
    "Metadata": {
     "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/function/CDKMetadata/Default"
@@ -413,17 +815,56 @@
   }
  },
  "Outputs": {
-  "amplifyimmunyappsooryasandboxe8e77bc7aefunctionhandlerlambdaB0F71400Arn": {
+  "amplifyimmunyappsooryasandboxe8e77bc7aefunctionaskMedGemmalambda92998554Arn": {
    "Value": {
     "Fn::GetAtt": [
-     "handlerlambdaE29D1580",
+     "askMedGemmalambda7C603B1E",
      "Arn"
     ]
    }
   },
-  "amplifyimmunyappsooryasandboxe8e77bc7aefunctionhandlerlambdaB0F71400Ref": {
+  "amplifyimmunyappsooryasandboxe8e77bc7aefunctionaskNovaMicrolambda2DAC1E62Arn": {
    "Value": {
-    "Ref": "handlerlambdaE29D1580"
+    "Fn::GetAtt": [
+     "askNovaMicrolambdaB8037DA5",
+     "Arn"
+    ]
+   }
+  },
+  "amplifyimmunyappsooryasandboxe8e77bc7aefunctionlogConversationEventlambdaF02E6EADArn": {
+   "Value": {
+    "Fn::GetAtt": [
+     "logConversationEventlambdaE4EEE836",
+     "Arn"
+    ]
+   }
+  },
+  "amplifyimmunyappsooryasandboxe8e77bc7aefunctiongetConversationLogslambda7DB2A7C4Arn": {
+   "Value": {
+    "Fn::GetAtt": [
+     "getConversationLogslambdaAC1FF27A",
+     "Arn"
+    ]
+   }
+  },
+  "amplifyimmunyappsooryasandboxe8e77bc7aefunctionaskMedGemmalambda92998554Ref": {
+   "Value": {
+    "Ref": "askMedGemmalambda7C603B1E"
+   }
+  },
+  "amplifyimmunyappsooryasandboxe8e77bc7aefunctionaskNovaMicrolambda2DAC1E62Ref": {
+   "Value": {
+    "Ref": "askNovaMicrolambdaB8037DA5"
+   }
+  },
+  "amplifyimmunyappsooryasandboxe8e77bc7aefunctionlogConversationEventlambdaF02E6EADRef": {
+   "Value": {
+    "Ref": "logConversationEventlambdaE4EEE836"
+   }
+  },
+  "amplifyimmunyappsooryasandboxe8e77bc7aefunctiongetConversationLogslambda7DB2A7C4Ref": {
+   "Value": {
+    "Ref": "getConversationLogslambdaAC1FF27A"
    }
   }
  }

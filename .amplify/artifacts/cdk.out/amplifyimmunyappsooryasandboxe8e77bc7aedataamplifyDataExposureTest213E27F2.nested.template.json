@@ -1,0 +1,2171 @@
+{
+ "Parameters": {
+  "DynamoDBModelTableReadIOPS": {
+   "Type": "Number",
+   "Default": 5,
+   "Description": "The number of read IOPS the table should support."
+  },
+  "DynamoDBModelTableWriteIOPS": {
+   "Type": "Number",
+   "Default": 5,
+   "Description": "The number of write IOPS the table should support."
+  },
+  "DynamoDBBillingMode": {
+   "Type": "String",
+   "Default": "PAY_PER_REQUEST",
+   "AllowedValues": [
+    "PAY_PER_REQUEST",
+    "PROVISIONED"
+   ],
+   "Description": "Configure @model types to create DynamoDB tables with PAY_PER_REQUEST or PROVISIONED billing modes."
+  },
+  "DynamoDBEnablePointInTimeRecovery": {
+   "Type": "String",
+   "Default": "false",
+   "AllowedValues": [
+    "true",
+    "false"
+   ],
+   "Description": "Whether to enable Point in Time Recovery on the table."
+  },
+  "DynamoDBEnableServerSideEncryption": {
+   "Type": "String",
+   "Default": "true",
+   "AllowedValues": [
+    "true",
+    "false"
+   ],
+   "Description": "Enable server side encryption powered by KMS."
+  },
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataAmplifyTableManagerNestedStackAmplifyTableManagerNestedStackResource4C806F4BOutputsamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataAmplifyTableManagerTableManagerCustomPA95338C1": {
+   "Type": "String"
+  },
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId": {
+   "Type": "String"
+  },
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name": {
+   "Type": "String"
+  },
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef": {
+   "Type": "String"
+  },
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef": {
+   "Type": "String"
+  },
+  "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref": {
+   "Type": "String"
+  }
+ },
+ "Conditions": {
+  "HasEnvironmentParameter": {
+   "Fn::Not": [
+    {
+     "Fn::Equals": [
+      "NONE",
+      "NONE"
+     ]
+    }
+   ]
+  },
+  "ShouldUsePayPerRequestBilling": {
+   "Fn::Equals": [
+    {
+     "Ref": "DynamoDBBillingMode"
+    },
+    "PAY_PER_REQUEST"
+   ]
+  },
+  "ShouldUsePointInTimeRecovery": {
+   "Fn::Equals": [
+    {
+     "Ref": "DynamoDBEnablePointInTimeRecovery"
+    },
+    "true"
+   ]
+  },
+  "CDKMetadataAvailable": {
+   "Fn::Or": [
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "af-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-northeast-3"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-south-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-3"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ap-southeast-4"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ca-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "ca-west-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "cn-north-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "cn-northwest-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-central-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-north-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-south-2"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Or": [
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "eu-west-3"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "il-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "me-central-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "me-south-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "sa-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-east-1"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-east-2"
+       ]
+      },
+      {
+       "Fn::Equals": [
+        {
+         "Ref": "AWS::Region"
+        },
+        "us-west-1"
+       ]
+      }
+     ]
+    },
+    {
+     "Fn::Equals": [
+      {
+       "Ref": "AWS::Region"
+      },
+      "us-west-2"
+     ]
+    }
+   ]
+  }
+ },
+ "Resources": {
+  "ExposureTestTable": {
+   "Type": "Custom::AmplifyDynamoDBTable",
+   "Properties": {
+    "ServiceToken": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataAmplifyTableManagerNestedStackAmplifyTableManagerNestedStackResource4C806F4BOutputsamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataAmplifyTableManagerTableManagerCustomPA95338C1"
+    },
+    "tableName": {
+     "Fn::Join": [
+      "",
+      [
+       "ExposureTest-",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "-NONE"
+      ]
+     ]
+    },
+    "attributeDefinitions": [
+     {
+      "attributeName": "id",
+      "attributeType": "S"
+     }
+    ],
+    "keySchema": [
+     {
+      "attributeName": "id",
+      "keyType": "HASH"
+     }
+    ],
+    "provisionedThroughput": {
+     "Fn::If": [
+      "ShouldUsePayPerRequestBilling",
+      {
+       "Ref": "AWS::NoValue"
+      },
+      {
+       "ReadCapacityUnits": {
+        "Ref": "DynamoDBModelTableReadIOPS"
+       },
+       "WriteCapacityUnits": {
+        "Ref": "DynamoDBModelTableWriteIOPS"
+       }
+      }
+     ]
+    },
+    "sseSpecification": {
+     "sseEnabled": false
+    },
+    "streamSpecification": {
+     "streamViewType": "NEW_AND_OLD_IMAGES"
+    },
+    "deletionProtectionEnabled": false,
+    "allowDestructiveGraphqlSchemaUpdates": true,
+    "replaceTableUponGsiUpdate": true,
+    "pointInTimeRecoverySpecification": {
+     "Fn::If": [
+      "ShouldUsePointInTimeRecovery",
+      {
+       "PointInTimeRecoveryEnabled": true
+      },
+      {
+       "Ref": "AWS::NoValue"
+      }
+     ]
+    },
+    "billingMode": {
+     "Fn::If": [
+      "ShouldUsePayPerRequestBilling",
+      "PAY_PER_REQUEST",
+      {
+       "Ref": "AWS::NoValue"
+      }
+     ]
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/ExposureTestTable/Default/Default"
+   }
+  },
+  "ExposureTestIAMRole9BBE4ACE": {
+   "Type": "AWS::IAM::Role",
+   "Properties": {
+    "AssumeRolePolicyDocument": {
+     "Statement": [
+      {
+       "Action": "sts:AssumeRole",
+       "Effect": "Allow",
+       "Principal": {
+        "Service": "appsync.amazonaws.com"
+       }
+      }
+     ],
+     "Version": "2012-10-17"
+    },
+    "Policies": [
+     {
+      "PolicyDocument": {
+       "Statement": [
+        {
+         "Action": [
+          "dynamodb:BatchGetItem",
+          "dynamodb:BatchWriteItem",
+          "dynamodb:PutItem",
+          "dynamodb:DeleteItem",
+          "dynamodb:GetItem",
+          "dynamodb:Scan",
+          "dynamodb:Query",
+          "dynamodb:UpdateItem",
+          "dynamodb:ConditionCheckItem",
+          "dynamodb:DescribeTable",
+          "dynamodb:GetRecords",
+          "dynamodb:GetShardIterator"
+         ],
+         "Effect": "Allow",
+         "Resource": [
+          {
+           "Fn::Sub": [
+            "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${tablename}",
+            {
+             "tablename": {
+              "Fn::Join": [
+               "",
+               [
+                "ExposureTest-",
+                {
+                 "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+                },
+                "-NONE"
+               ]
+              ]
+             }
+            }
+           ]
+          },
+          {
+           "Fn::Sub": [
+            "arn:${AWS::Partition}:dynamodb:${AWS::Region}:${AWS::AccountId}:table/${tablename}/*",
+            {
+             "tablename": {
+              "Fn::Join": [
+               "",
+               [
+                "ExposureTest-",
+                {
+                 "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+                },
+                "-NONE"
+               ]
+              ]
+             }
+            }
+           ]
+          }
+         ]
+        }
+       ],
+       "Version": "2012-10-17"
+      },
+      "PolicyName": "DynamoDBAccess"
+     }
+    ],
+    "RoleName": {
+     "Fn::Join": [
+      "",
+      [
+       "ExposureTestIAMRolea57fb4-",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "-NONE"
+      ]
+     ]
+    },
+    "Tags": [
+     {
+      "Key": "amplify:deployment-type",
+      "Value": "sandbox"
+     },
+     {
+      "Key": "amplify:friendly-name",
+      "Value": "amplifyData"
+     },
+     {
+      "Key": "created-by",
+      "Value": "amplify"
+     }
+    ]
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/ExposureTestIAMRole/Resource"
+   }
+  },
+  "ExposureTestDataSource": {
+   "Type": "AWS::AppSync::DataSource",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DynamoDBConfig": {
+     "AwsRegion": {
+      "Ref": "AWS::Region"
+     },
+     "TableName": {
+      "Fn::Select": [
+       1,
+       {
+        "Fn::Split": [
+         "/",
+         {
+          "Fn::Select": [
+           5,
+           {
+            "Fn::Split": [
+             ":",
+             {
+              "Fn::GetAtt": [
+               "ExposureTestTable",
+               "TableArn"
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       }
+      ]
+     }
+    },
+    "Name": "ExposureTestTable",
+    "ServiceRoleArn": {
+     "Fn::GetAtt": [
+      "ExposureTestIAMRole9BBE4ACE",
+      "Arn"
+     ]
+    },
+    "Type": "AMAZON_DYNAMODB"
+   },
+   "DependsOn": [
+    "ExposureTestIAMRole9BBE4ACE"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/ExposureTestDataSource/Resource"
+   }
+  },
+  "QuerygetExposureTestauth0FunctionQuerygetExposureTestauth0FunctionAppSyncFunctionE0A5AFBF": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "QuerygetExposureTestauth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/6b25c9b572c67e0f7ad41cb8019a90825f3db4b02a0a15b837c7a82dcb302060.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/QuerygetExposureTestauth0Function/QuerygetExposureTestauth0Function.AppSyncFunction"
+   }
+  },
+  "QuerygetExposureTestpostAuth0FunctionQuerygetExposureTestpostAuth0FunctionAppSyncFunction881FD29E": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "QuerygetExposureTestpostAuth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/c1721bcd774e27c514d3454b5be4f9bdd094c0161b57ddf053d618e3b0086a77.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/QuerygetExposureTestpostAuth0Function/QuerygetExposureTestpostAuth0Function.AppSyncFunction"
+   }
+  },
+  "QueryGetExposureTestDataResolverFnQueryGetExposureTestDataResolverFnAppSyncFunctionF9C4C78D": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Fn::GetAtt": [
+      "ExposureTestDataSource",
+      "Name"
+     ]
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "QueryGetExposureTestDataResolverFn",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/08f4d557693d96c1a4efba0f9dc91330e4b19772fd5477c156468843e3d9cb5e.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/4c6a2d29f01c6091bd1d9afe16e5849d456c96f17c3b215938c8067399532719.vtl"
+    }
+   },
+   "DependsOn": [
+    "ExposureTestDataSource"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/QueryGetExposureTestDataResolverFn/QueryGetExposureTestDataResolverFn.AppSyncFunction"
+   }
+  },
+  "GetExposureTestResolver": {
+   "Type": "AWS::AppSync::Resolver",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "FieldName": "getExposureTest",
+    "Kind": "PIPELINE",
+    "PipelineConfig": {
+     "Functions": [
+      {
+       "Fn::GetAtt": [
+        "QuerygetExposureTestauth0FunctionQuerygetExposureTestauth0FunctionAppSyncFunctionE0A5AFBF",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "QuerygetExposureTestpostAuth0FunctionQuerygetExposureTestpostAuth0FunctionAppSyncFunction881FD29E",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "QueryGetExposureTestDataResolverFnQueryGetExposureTestDataResolverFnAppSyncFunctionF9C4C78D",
+        "FunctionId"
+       ]
+      }
+     ]
+    },
+    "RequestMappingTemplate": {
+     "Fn::Join": [
+      "",
+      [
+       "$util.qr($ctx.stash.put(\"typeName\", \"Query\"))\n$util.qr($ctx.stash.put(\"fieldName\", \"getExposureTest\"))\n$util.qr($ctx.stash.put(\"conditions\", []))\n$util.qr($ctx.stash.put(\"metadata\", {}))\n$util.qr($ctx.stash.metadata.put(\"dataSourceType\", \"AMAZON_DYNAMODB\"))\n$util.qr($ctx.stash.metadata.put(\"apiId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"connectionAttributes\", {}))\n$util.qr($ctx.stash.put(\"tableName\", \"",
+       {
+        "Fn::Select": [
+         1,
+         {
+          "Fn::Split": [
+           "/",
+           {
+            "Fn::Select": [
+             5,
+             {
+              "Fn::Split": [
+               ":",
+               {
+                "Fn::GetAtt": [
+                 "ExposureTestTable",
+                 "TableArn"
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"authRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"unauthRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"identityPoolId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"adminRoles\", []))\n$util.toJson({})"
+      ]
+     ]
+    },
+    "ResponseMappingTemplate": "$util.toJson($ctx.prev.result)",
+    "TypeName": "Query"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/queryGetExposureTestResolver"
+   }
+  },
+  "QuerylistExposureTestsauth0FunctionQuerylistExposureTestsauth0FunctionAppSyncFunction00BDEE10": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "QuerylistExposureTestsauth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/6b25c9b572c67e0f7ad41cb8019a90825f3db4b02a0a15b837c7a82dcb302060.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/QuerylistExposureTestsauth0Function/QuerylistExposureTestsauth0Function.AppSyncFunction"
+   }
+  },
+  "QuerylistExposureTestspostAuth0FunctionQuerylistExposureTestspostAuth0FunctionAppSyncFunction8A1295DC": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "QuerylistExposureTestspostAuth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/c1721bcd774e27c514d3454b5be4f9bdd094c0161b57ddf053d618e3b0086a77.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/QuerylistExposureTestspostAuth0Function/QuerylistExposureTestspostAuth0Function.AppSyncFunction"
+   }
+  },
+  "QueryListExposureTestsDataResolverFnQueryListExposureTestsDataResolverFnAppSyncFunctionCB1E3C1E": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Fn::GetAtt": [
+      "ExposureTestDataSource",
+      "Name"
+     ]
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "QueryListExposureTestsDataResolverFn",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/9fcbe070ecd3023c5bf5b966fa9584757db9762eef123bad0820bd87591b2174.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/cc01911d0269d4080ea57505dc445dfc315ef7ad85d3d9d4ea1357858bff451d.vtl"
+    }
+   },
+   "DependsOn": [
+    "ExposureTestDataSource"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/QueryListExposureTestsDataResolverFn/QueryListExposureTestsDataResolverFn.AppSyncFunction"
+   }
+  },
+  "ListExposureTestResolver": {
+   "Type": "AWS::AppSync::Resolver",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "FieldName": "listExposureTests",
+    "Kind": "PIPELINE",
+    "PipelineConfig": {
+     "Functions": [
+      {
+       "Fn::GetAtt": [
+        "QuerylistExposureTestsauth0FunctionQuerylistExposureTestsauth0FunctionAppSyncFunction00BDEE10",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "QuerylistExposureTestspostAuth0FunctionQuerylistExposureTestspostAuth0FunctionAppSyncFunction8A1295DC",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "QueryListExposureTestsDataResolverFnQueryListExposureTestsDataResolverFnAppSyncFunctionCB1E3C1E",
+        "FunctionId"
+       ]
+      }
+     ]
+    },
+    "RequestMappingTemplate": {
+     "Fn::Join": [
+      "",
+      [
+       "$util.qr($ctx.stash.put(\"typeName\", \"Query\"))\n$util.qr($ctx.stash.put(\"fieldName\", \"listExposureTests\"))\n$util.qr($ctx.stash.put(\"conditions\", []))\n$util.qr($ctx.stash.put(\"metadata\", {}))\n$util.qr($ctx.stash.metadata.put(\"dataSourceType\", \"AMAZON_DYNAMODB\"))\n$util.qr($ctx.stash.metadata.put(\"apiId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"connectionAttributes\", {}))\n$util.qr($ctx.stash.put(\"tableName\", \"",
+       {
+        "Fn::Select": [
+         1,
+         {
+          "Fn::Split": [
+           "/",
+           {
+            "Fn::Select": [
+             5,
+             {
+              "Fn::Split": [
+               ":",
+               {
+                "Fn::GetAtt": [
+                 "ExposureTestTable",
+                 "TableArn"
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"authRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"unauthRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"identityPoolId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"adminRoles\", []))\n$util.toJson({})"
+      ]
+     ]
+    },
+    "ResponseMappingTemplate": "$util.toJson($ctx.prev.result)",
+    "TypeName": "Query"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/queryListExposureTestsResolver"
+   }
+  },
+  "MutationcreateExposureTestinit0FunctionMutationcreateExposureTestinit0FunctionAppSyncFunction4CDD841B": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "MutationcreateExposureTestinit0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/a183ddccbd956316c38ef97177b8f088ef0826f62023323f5ae6053d348ccffc.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/MutationcreateExposureTestinit0Function/MutationcreateExposureTestinit0Function.AppSyncFunction"
+   }
+  },
+  "MutationcreateExposureTestauth0FunctionMutationcreateExposureTestauth0FunctionAppSyncFunction6E99038F": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "MutationcreateExposureTestauth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/0252d467492a3134f839f46fabc49349a8b7710a2a2428bd0e17bbf12e1e698a.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/MutationcreateExposureTestauth0Function/MutationcreateExposureTestauth0Function.AppSyncFunction"
+   }
+  },
+  "MutationcreateExposureTestpostAuth0FunctionMutationcreateExposureTestpostAuth0FunctionAppSyncFunctionBA3BA42F": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "MutationcreateExposureTestpostAuth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/c1721bcd774e27c514d3454b5be4f9bdd094c0161b57ddf053d618e3b0086a77.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/MutationcreateExposureTestpostAuth0Function/MutationcreateExposureTestpostAuth0Function.AppSyncFunction"
+   }
+  },
+  "MutationCreateExposureTestDataResolverFnMutationCreateExposureTestDataResolverFnAppSyncFunctionC44AA09F": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Fn::GetAtt": [
+      "ExposureTestDataSource",
+      "Name"
+     ]
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "MutationCreateExposureTestDataResolverFn",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/0d1334472b8c40e58bb308523f9b6b163b32138cae3492aca684c77debc65643.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/f4a52b72209a9dfa197b5e7367a5c378c5bb86de6e29ddd9e48b49a3fe54b249.vtl"
+    }
+   },
+   "DependsOn": [
+    "ExposureTestDataSource"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/MutationCreateExposureTestDataResolverFn/MutationCreateExposureTestDataResolverFn.AppSyncFunction"
+   }
+  },
+  "CreateExposureTestResolver": {
+   "Type": "AWS::AppSync::Resolver",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "FieldName": "createExposureTest",
+    "Kind": "PIPELINE",
+    "PipelineConfig": {
+     "Functions": [
+      {
+       "Fn::GetAtt": [
+        "MutationcreateExposureTestinit0FunctionMutationcreateExposureTestinit0FunctionAppSyncFunction4CDD841B",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "MutationcreateExposureTestauth0FunctionMutationcreateExposureTestauth0FunctionAppSyncFunction6E99038F",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "MutationcreateExposureTestpostAuth0FunctionMutationcreateExposureTestpostAuth0FunctionAppSyncFunctionBA3BA42F",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "MutationCreateExposureTestDataResolverFnMutationCreateExposureTestDataResolverFnAppSyncFunctionC44AA09F",
+        "FunctionId"
+       ]
+      }
+     ]
+    },
+    "RequestMappingTemplate": {
+     "Fn::Join": [
+      "",
+      [
+       "$util.qr($ctx.stash.put(\"typeName\", \"Mutation\"))\n$util.qr($ctx.stash.put(\"fieldName\", \"createExposureTest\"))\n$util.qr($ctx.stash.put(\"conditions\", []))\n$util.qr($ctx.stash.put(\"metadata\", {}))\n$util.qr($ctx.stash.metadata.put(\"dataSourceType\", \"AMAZON_DYNAMODB\"))\n$util.qr($ctx.stash.metadata.put(\"apiId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"connectionAttributes\", {}))\n$util.qr($ctx.stash.put(\"tableName\", \"",
+       {
+        "Fn::Select": [
+         1,
+         {
+          "Fn::Split": [
+           "/",
+           {
+            "Fn::Select": [
+             5,
+             {
+              "Fn::Split": [
+               ":",
+               {
+                "Fn::GetAtt": [
+                 "ExposureTestTable",
+                 "TableArn"
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"authRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"unauthRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"identityPoolId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"adminRoles\", []))\n$util.toJson({})"
+      ]
+     ]
+    },
+    "ResponseMappingTemplate": "$util.toJson($ctx.prev.result)",
+    "TypeName": "Mutation"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/mutationCreateExposureTestResolver"
+   }
+  },
+  "MutationupdateExposureTestinit0FunctionMutationupdateExposureTestinit0FunctionAppSyncFunction92B2D45D": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "MutationupdateExposureTestinit0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/06db846fd14e6fc371f22b12b5545ba8e2dbfeda85d8c8d586c71c282166657b.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/MutationupdateExposureTestinit0Function/MutationupdateExposureTestinit0Function.AppSyncFunction"
+   }
+  },
+  "MutationupdateExposureTestauth0FunctionMutationupdateExposureTestauth0FunctionAppSyncFunction9B1A3257": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Fn::GetAtt": [
+      "ExposureTestDataSource",
+      "Name"
+     ]
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "MutationupdateExposureTestauth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/1f5fed297da9c32ae3af922bf3a38ccf23b956078887d16891ec06c20c64722c.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/7864d1ac35afe89c3da40afeec4fa4b2825b76d6aa981cf71bd5cc05827191cb.vtl"
+    }
+   },
+   "DependsOn": [
+    "ExposureTestDataSource"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/MutationupdateExposureTestauth0Function/MutationupdateExposureTestauth0Function.AppSyncFunction"
+   }
+  },
+  "MutationupdateExposureTestpostAuth0FunctionMutationupdateExposureTestpostAuth0FunctionAppSyncFunction9279CA65": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "MutationupdateExposureTestpostAuth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/c1721bcd774e27c514d3454b5be4f9bdd094c0161b57ddf053d618e3b0086a77.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/MutationupdateExposureTestpostAuth0Function/MutationupdateExposureTestpostAuth0Function.AppSyncFunction"
+   }
+  },
+  "MutationUpdateExposureTestDataResolverFnMutationUpdateExposureTestDataResolverFnAppSyncFunctionB6145464": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Fn::GetAtt": [
+      "ExposureTestDataSource",
+      "Name"
+     ]
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "MutationUpdateExposureTestDataResolverFn",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/474bf0776ec2164a13191d1a0a9e057154931e4918fea5086f49850d02a5371b.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/f4a52b72209a9dfa197b5e7367a5c378c5bb86de6e29ddd9e48b49a3fe54b249.vtl"
+    }
+   },
+   "DependsOn": [
+    "ExposureTestDataSource"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/MutationUpdateExposureTestDataResolverFn/MutationUpdateExposureTestDataResolverFn.AppSyncFunction"
+   }
+  },
+  "UpdateExposureTestResolver": {
+   "Type": "AWS::AppSync::Resolver",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "FieldName": "updateExposureTest",
+    "Kind": "PIPELINE",
+    "PipelineConfig": {
+     "Functions": [
+      {
+       "Fn::GetAtt": [
+        "MutationupdateExposureTestinit0FunctionMutationupdateExposureTestinit0FunctionAppSyncFunction92B2D45D",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "MutationupdateExposureTestauth0FunctionMutationupdateExposureTestauth0FunctionAppSyncFunction9B1A3257",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "MutationupdateExposureTestpostAuth0FunctionMutationupdateExposureTestpostAuth0FunctionAppSyncFunction9279CA65",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "MutationUpdateExposureTestDataResolverFnMutationUpdateExposureTestDataResolverFnAppSyncFunctionB6145464",
+        "FunctionId"
+       ]
+      }
+     ]
+    },
+    "RequestMappingTemplate": {
+     "Fn::Join": [
+      "",
+      [
+       "$util.qr($ctx.stash.put(\"typeName\", \"Mutation\"))\n$util.qr($ctx.stash.put(\"fieldName\", \"updateExposureTest\"))\n$util.qr($ctx.stash.put(\"conditions\", []))\n$util.qr($ctx.stash.put(\"metadata\", {}))\n$util.qr($ctx.stash.metadata.put(\"dataSourceType\", \"AMAZON_DYNAMODB\"))\n$util.qr($ctx.stash.metadata.put(\"apiId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"connectionAttributes\", {}))\n$util.qr($ctx.stash.put(\"tableName\", \"",
+       {
+        "Fn::Select": [
+         1,
+         {
+          "Fn::Split": [
+           "/",
+           {
+            "Fn::Select": [
+             5,
+             {
+              "Fn::Split": [
+               ":",
+               {
+                "Fn::GetAtt": [
+                 "ExposureTestTable",
+                 "TableArn"
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"authRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"unauthRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"identityPoolId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"adminRoles\", []))\n$util.toJson({})"
+      ]
+     ]
+    },
+    "ResponseMappingTemplate": "$util.toJson($ctx.prev.result)",
+    "TypeName": "Mutation"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/mutationUpdateExposureTestResolver"
+   }
+  },
+  "MutationdeleteExposureTestauth0FunctionMutationdeleteExposureTestauth0FunctionAppSyncFunction8CE6BC45": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Fn::GetAtt": [
+      "ExposureTestDataSource",
+      "Name"
+     ]
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "MutationdeleteExposureTestauth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/1f5fed297da9c32ae3af922bf3a38ccf23b956078887d16891ec06c20c64722c.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/867fb7d7eb8e4127b6d0136b82c5c3f74a52eb410297086859986f8e7e4b02aa.vtl"
+    }
+   },
+   "DependsOn": [
+    "ExposureTestDataSource"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/MutationdeleteExposureTestauth0Function/MutationdeleteExposureTestauth0Function.AppSyncFunction"
+   }
+  },
+  "MutationdeleteExposureTestpostAuth0FunctionMutationdeleteExposureTestpostAuth0FunctionAppSyncFunction858B8661": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "MutationdeleteExposureTestpostAuth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/c1721bcd774e27c514d3454b5be4f9bdd094c0161b57ddf053d618e3b0086a77.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/MutationdeleteExposureTestpostAuth0Function/MutationdeleteExposureTestpostAuth0Function.AppSyncFunction"
+   }
+  },
+  "MutationDeleteExposureTestDataResolverFnMutationDeleteExposureTestDataResolverFnAppSyncFunction3932632F": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Fn::GetAtt": [
+      "ExposureTestDataSource",
+      "Name"
+     ]
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "MutationDeleteExposureTestDataResolverFn",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/4f7907d1209a2c9953a0c053df402c634e359546d70c7cc5c2e8e21ea734880f.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/f4a52b72209a9dfa197b5e7367a5c378c5bb86de6e29ddd9e48b49a3fe54b249.vtl"
+    }
+   },
+   "DependsOn": [
+    "ExposureTestDataSource"
+   ],
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/MutationDeleteExposureTestDataResolverFn/MutationDeleteExposureTestDataResolverFn.AppSyncFunction"
+   }
+  },
+  "DeleteExposureTestResolver": {
+   "Type": "AWS::AppSync::Resolver",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "FieldName": "deleteExposureTest",
+    "Kind": "PIPELINE",
+    "PipelineConfig": {
+     "Functions": [
+      {
+       "Fn::GetAtt": [
+        "MutationdeleteExposureTestauth0FunctionMutationdeleteExposureTestauth0FunctionAppSyncFunction8CE6BC45",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "MutationdeleteExposureTestpostAuth0FunctionMutationdeleteExposureTestpostAuth0FunctionAppSyncFunction858B8661",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "MutationDeleteExposureTestDataResolverFnMutationDeleteExposureTestDataResolverFnAppSyncFunction3932632F",
+        "FunctionId"
+       ]
+      }
+     ]
+    },
+    "RequestMappingTemplate": {
+     "Fn::Join": [
+      "",
+      [
+       "$util.qr($ctx.stash.put(\"typeName\", \"Mutation\"))\n$util.qr($ctx.stash.put(\"fieldName\", \"deleteExposureTest\"))\n$util.qr($ctx.stash.put(\"conditions\", []))\n$util.qr($ctx.stash.put(\"metadata\", {}))\n$util.qr($ctx.stash.metadata.put(\"dataSourceType\", \"AMAZON_DYNAMODB\"))\n$util.qr($ctx.stash.metadata.put(\"apiId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"connectionAttributes\", {}))\n$util.qr($ctx.stash.put(\"tableName\", \"",
+       {
+        "Fn::Select": [
+         1,
+         {
+          "Fn::Split": [
+           "/",
+           {
+            "Fn::Select": [
+             5,
+             {
+              "Fn::Split": [
+               ":",
+               {
+                "Fn::GetAtt": [
+                 "ExposureTestTable",
+                 "TableArn"
+                ]
+               }
+              ]
+             }
+            ]
+           }
+          ]
+         }
+        ]
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"authRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"unauthRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"identityPoolId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"adminRoles\", []))\n$util.toJson({})"
+      ]
+     ]
+    },
+    "ResponseMappingTemplate": "$util.toJson($ctx.prev.result)",
+    "TypeName": "Mutation"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/mutationDeleteExposureTestResolver"
+   }
+  },
+  "SubscriptiononCreateExposureTestauth0FunctionSubscriptiononCreateExposureTestauth0FunctionAppSyncFunctionD0C1AD44": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "SubscriptiononCreateExposureTestauth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/3b6d810ef43cdbd93ef462c40b0df0328b89e04f1473a4f82f1178da1f1d5aa0.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/SubscriptiononCreateExposureTestauth0Function/SubscriptiononCreateExposureTestauth0Function.AppSyncFunction"
+   }
+  },
+  "SubscriptiononCreateExposureTestpostAuth0FunctionSubscriptiononCreateExposureTestpostAuth0FunctionAppSyncFunction4EF0FB7A": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "SubscriptiononCreateExposureTestpostAuth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/c1721bcd774e27c514d3454b5be4f9bdd094c0161b57ddf053d618e3b0086a77.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/SubscriptiononCreateExposureTestpostAuth0Function/SubscriptiononCreateExposureTestpostAuth0Function.AppSyncFunction"
+   }
+  },
+  "SubscriptionOnCreateExposureTestDataResolverFnSubscriptionOnCreateExposureTestDataResolverFnAppSyncFunction6C74E6F6": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "SubscriptionOnCreateExposureTestDataResolverFn",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/fe3c43ada4b9d681a5e2312663ef7a73386424d73b73e51f8e2e9d4b50f7c502.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/e0cff47fb007f0bbf2a4e43ca256d6aa7ec109821769fd79fa7c5e83f0e7f9fc.vtl"
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/SubscriptionOnCreateExposureTestDataResolverFn/SubscriptionOnCreateExposureTestDataResolverFn.AppSyncFunction"
+   }
+  },
+  "SubscriptiononCreateExposureTestResolver": {
+   "Type": "AWS::AppSync::Resolver",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "FieldName": "onCreateExposureTest",
+    "Kind": "PIPELINE",
+    "PipelineConfig": {
+     "Functions": [
+      {
+       "Fn::GetAtt": [
+        "SubscriptiononCreateExposureTestauth0FunctionSubscriptiononCreateExposureTestauth0FunctionAppSyncFunctionD0C1AD44",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "SubscriptiononCreateExposureTestpostAuth0FunctionSubscriptiononCreateExposureTestpostAuth0FunctionAppSyncFunction4EF0FB7A",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "SubscriptionOnCreateExposureTestDataResolverFnSubscriptionOnCreateExposureTestDataResolverFnAppSyncFunction6C74E6F6",
+        "FunctionId"
+       ]
+      }
+     ]
+    },
+    "RequestMappingTemplate": {
+     "Fn::Join": [
+      "",
+      [
+       "$util.qr($ctx.stash.put(\"typeName\", \"Subscription\"))\n$util.qr($ctx.stash.put(\"fieldName\", \"onCreateExposureTest\"))\n$util.qr($ctx.stash.put(\"conditions\", []))\n$util.qr($ctx.stash.put(\"metadata\", {}))\n$util.qr($ctx.stash.metadata.put(\"dataSourceType\", \"NONE\"))\n$util.qr($ctx.stash.metadata.put(\"apiId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"connectionAttributes\", {}))\n\n$util.qr($ctx.stash.put(\"authRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"unauthRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"identityPoolId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"adminRoles\", []))\n$util.toJson({})"
+      ]
+     ]
+    },
+    "ResponseMappingTemplate": "$util.toJson($ctx.prev.result)",
+    "TypeName": "Subscription"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/subscriptionOnCreateExposureTestResolver"
+   }
+  },
+  "SubscriptiononUpdateExposureTestauth0FunctionSubscriptiononUpdateExposureTestauth0FunctionAppSyncFunctionC687288B": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "SubscriptiononUpdateExposureTestauth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/3b6d810ef43cdbd93ef462c40b0df0328b89e04f1473a4f82f1178da1f1d5aa0.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/SubscriptiononUpdateExposureTestauth0Function/SubscriptiononUpdateExposureTestauth0Function.AppSyncFunction"
+   }
+  },
+  "SubscriptiononUpdateExposureTestpostAuth0FunctionSubscriptiononUpdateExposureTestpostAuth0FunctionAppSyncFunction7F952E4C": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "SubscriptiononUpdateExposureTestpostAuth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/c1721bcd774e27c514d3454b5be4f9bdd094c0161b57ddf053d618e3b0086a77.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/SubscriptiononUpdateExposureTestpostAuth0Function/SubscriptiononUpdateExposureTestpostAuth0Function.AppSyncFunction"
+   }
+  },
+  "SubscriptionOnUpdateExposureTestDataResolverFnSubscriptionOnUpdateExposureTestDataResolverFnAppSyncFunction49188EB1": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "SubscriptionOnUpdateExposureTestDataResolverFn",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/fe3c43ada4b9d681a5e2312663ef7a73386424d73b73e51f8e2e9d4b50f7c502.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/e0cff47fb007f0bbf2a4e43ca256d6aa7ec109821769fd79fa7c5e83f0e7f9fc.vtl"
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/SubscriptionOnUpdateExposureTestDataResolverFn/SubscriptionOnUpdateExposureTestDataResolverFn.AppSyncFunction"
+   }
+  },
+  "SubscriptiononUpdateExposureTestResolver": {
+   "Type": "AWS::AppSync::Resolver",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "FieldName": "onUpdateExposureTest",
+    "Kind": "PIPELINE",
+    "PipelineConfig": {
+     "Functions": [
+      {
+       "Fn::GetAtt": [
+        "SubscriptiononUpdateExposureTestauth0FunctionSubscriptiononUpdateExposureTestauth0FunctionAppSyncFunctionC687288B",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "SubscriptiononUpdateExposureTestpostAuth0FunctionSubscriptiononUpdateExposureTestpostAuth0FunctionAppSyncFunction7F952E4C",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "SubscriptionOnUpdateExposureTestDataResolverFnSubscriptionOnUpdateExposureTestDataResolverFnAppSyncFunction49188EB1",
+        "FunctionId"
+       ]
+      }
+     ]
+    },
+    "RequestMappingTemplate": {
+     "Fn::Join": [
+      "",
+      [
+       "$util.qr($ctx.stash.put(\"typeName\", \"Subscription\"))\n$util.qr($ctx.stash.put(\"fieldName\", \"onUpdateExposureTest\"))\n$util.qr($ctx.stash.put(\"conditions\", []))\n$util.qr($ctx.stash.put(\"metadata\", {}))\n$util.qr($ctx.stash.metadata.put(\"dataSourceType\", \"NONE\"))\n$util.qr($ctx.stash.metadata.put(\"apiId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"connectionAttributes\", {}))\n\n$util.qr($ctx.stash.put(\"authRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"unauthRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"identityPoolId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"adminRoles\", []))\n$util.toJson({})"
+      ]
+     ]
+    },
+    "ResponseMappingTemplate": "$util.toJson($ctx.prev.result)",
+    "TypeName": "Subscription"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/subscriptionOnUpdateExposureTestResolver"
+   }
+  },
+  "SubscriptiononDeleteExposureTestauth0FunctionSubscriptiononDeleteExposureTestauth0FunctionAppSyncFunctionB17391FD": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "SubscriptiononDeleteExposureTestauth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/3b6d810ef43cdbd93ef462c40b0df0328b89e04f1473a4f82f1178da1f1d5aa0.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/SubscriptiononDeleteExposureTestauth0Function/SubscriptiononDeleteExposureTestauth0Function.AppSyncFunction"
+   }
+  },
+  "SubscriptiononDeleteExposureTestpostAuth0FunctionSubscriptiononDeleteExposureTestpostAuth0FunctionAppSyncFunctionEB49BF2E": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "SubscriptiononDeleteExposureTestpostAuth0Function",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/c1721bcd774e27c514d3454b5be4f9bdd094c0161b57ddf053d618e3b0086a77.vtl"
+    },
+    "ResponseMappingTemplate": "$util.toJson({})"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/SubscriptiononDeleteExposureTestpostAuth0Function/SubscriptiononDeleteExposureTestpostAuth0Function.AppSyncFunction"
+   }
+  },
+  "SubscriptionOnDeleteExposureTestDataResolverFnSubscriptionOnDeleteExposureTestDataResolverFnAppSyncFunction5C0B2832": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "SubscriptionOnDeleteExposureTestDataResolverFn",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/fe3c43ada4b9d681a5e2312663ef7a73386424d73b73e51f8e2e9d4b50f7c502.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/e0cff47fb007f0bbf2a4e43ca256d6aa7ec109821769fd79fa7c5e83f0e7f9fc.vtl"
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/SubscriptionOnDeleteExposureTestDataResolverFn/SubscriptionOnDeleteExposureTestDataResolverFn.AppSyncFunction"
+   }
+  },
+  "SubscriptiononDeleteExposureTestResolver": {
+   "Type": "AWS::AppSync::Resolver",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "FieldName": "onDeleteExposureTest",
+    "Kind": "PIPELINE",
+    "PipelineConfig": {
+     "Functions": [
+      {
+       "Fn::GetAtt": [
+        "SubscriptiononDeleteExposureTestauth0FunctionSubscriptiononDeleteExposureTestauth0FunctionAppSyncFunctionB17391FD",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "SubscriptiononDeleteExposureTestpostAuth0FunctionSubscriptiononDeleteExposureTestpostAuth0FunctionAppSyncFunctionEB49BF2E",
+        "FunctionId"
+       ]
+      },
+      {
+       "Fn::GetAtt": [
+        "SubscriptionOnDeleteExposureTestDataResolverFnSubscriptionOnDeleteExposureTestDataResolverFnAppSyncFunction5C0B2832",
+        "FunctionId"
+       ]
+      }
+     ]
+    },
+    "RequestMappingTemplate": {
+     "Fn::Join": [
+      "",
+      [
+       "$util.qr($ctx.stash.put(\"typeName\", \"Subscription\"))\n$util.qr($ctx.stash.put(\"fieldName\", \"onDeleteExposureTest\"))\n$util.qr($ctx.stash.put(\"conditions\", []))\n$util.qr($ctx.stash.put(\"metadata\", {}))\n$util.qr($ctx.stash.metadata.put(\"dataSourceType\", \"NONE\"))\n$util.qr($ctx.stash.metadata.put(\"apiId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"connectionAttributes\", {}))\n\n$util.qr($ctx.stash.put(\"authRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"unauthRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"identityPoolId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"adminRoles\", []))\n$util.toJson({})"
+      ]
+     ]
+    },
+    "ResponseMappingTemplate": "$util.toJson($ctx.prev.result)",
+    "TypeName": "Subscription"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/subscriptionOnDeleteExposureTestResolver"
+   }
+  },
+  "ExposureTestOwnerDataResolverFnExposureTestOwnerDataResolverFnAppSyncFunctionC5FFB82C": {
+   "Type": "AWS::AppSync::FunctionConfiguration",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "DataSourceName": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPINONEDS54FEA0D3Name"
+    },
+    "FunctionVersion": "2018-05-29",
+    "Name": "ExposureTestOwnerDataResolverFn",
+    "RequestMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/041534e5fd916595f752318f161512d7c7f83b9f2cf32d0f0be381c12253ff68.vtl"
+    },
+    "ResponseMappingTemplateS3Location": {
+     "Fn::Sub": "s3://cdk-hnb659fds-assets-${AWS::AccountId}-${AWS::Region}/064303962e481067b44300212516363b99aaee539b6bafaf756fdd83ff0b60f0.vtl"
+    }
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/ExposureTestOwnerDataResolverFn/ExposureTestOwnerDataResolverFn.AppSyncFunction"
+   }
+  },
+  "ExposureTestownerResolver": {
+   "Type": "AWS::AppSync::Resolver",
+   "Properties": {
+    "ApiId": {
+     "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+    },
+    "FieldName": "owner",
+    "Kind": "PIPELINE",
+    "PipelineConfig": {
+     "Functions": [
+      {
+       "Fn::GetAtt": [
+        "ExposureTestOwnerDataResolverFnExposureTestOwnerDataResolverFnAppSyncFunctionC5FFB82C",
+        "FunctionId"
+       ]
+      }
+     ]
+    },
+    "RequestMappingTemplate": {
+     "Fn::Join": [
+      "",
+      [
+       "$util.qr($ctx.stash.put(\"typeName\", \"ExposureTest\"))\n$util.qr($ctx.stash.put(\"fieldName\", \"owner\"))\n$util.qr($ctx.stash.put(\"conditions\", []))\n$util.qr($ctx.stash.put(\"metadata\", {}))\n$util.qr($ctx.stash.metadata.put(\"dataSourceType\", \"NONE\"))\n$util.qr($ctx.stash.metadata.put(\"apiId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"connectionAttributes\", {}))\n\n$util.qr($ctx.stash.put(\"authRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthauthenticatedUserRoleEFB08C7ERef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"unauthRole\", \"arn:",
+       {
+        "Ref": "AWS::Partition"
+       },
+       ":sts::",
+       {
+        "Ref": "AWS::AccountId"
+       },
+       ":assumed-role/",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthunauthenticatedUserRole5FB2AD5FRef"
+       },
+       "/CognitoIdentityCredentials\"))\n$util.qr($ctx.stash.put(\"identityPoolId\", \"",
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aeauthNestedStackauthNestedStackResource406A0165Outputsamplifyimmunyappsooryasandboxe8e77bc7aeauthamplifyAuthIdentityPoolBD6F3C87Ref"
+       },
+       "\"))\n$util.qr($ctx.stash.put(\"adminRoles\", []))\n$util.toJson({})"
+      ]
+     ]
+    },
+    "ResponseMappingTemplate": "$util.toJson($ctx.prev.result)",
+    "TypeName": "ExposureTest"
+   },
+   "UpdateReplacePolicy": "Delete",
+   "DeletionPolicy": "Delete",
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/exposureTestOwnerResolver"
+   }
+  },
+  "CDKMetadata": {
+   "Type": "AWS::CDK::Metadata",
+   "Properties": {
+    "Analytics": "v2:deflate64:H4sIAAAAAAAA/1WQ0W6DMAxFv2Xvwetof2AF7XGb6N4rkxiUQhIUO50qxL8v0KnTnq6PfGVfu4TysIfdE35zoc1QjLaF+Z1YyJwE9aCqzn9iREdCcYUqeGPFBq8a4pCiJlUlluD+sPOPOo89z+bm0QXTwhe2Ix2RSVl0MDdhvLuzLgqniW9ew1xv9rqtUfD0GPmf3pLXa4icprN9irgl+t08XikuivdnZCZheF0lMxyTHkjWAMvq/UgyJVFbOx/bW98vygdDcOHna3mAl13+zIWtLWLyYh1Bc9cf0swHpzYBAAA="
+   },
+   "Metadata": {
+    "aws:cdk:path": "amplify-immunyapp-soorya-sandbox-e8e77bc7ae/data/amplifyData/ExposureTest/CDKMetadata/Default"
+   },
+   "Condition": "CDKMetadataAvailable"
+  }
+ },
+ "Outputs": {
+  "GetAttExposureTestTableStreamArn": {
+   "Description": "Your DynamoDB table StreamArn.",
+   "Value": {
+    "Fn::GetAtt": [
+     "ExposureTestTable",
+     "TableStreamArn"
+    ]
+   },
+   "Export": {
+    "Name": {
+     "Fn::Join": [
+      ":",
+      [
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "GetAtt:ExposureTestTable:StreamArn"
+      ]
+     ]
+    }
+   }
+  },
+  "GetAttExposureTestTableName": {
+   "Description": "Your DynamoDB table name.",
+   "Value": {
+    "Fn::Join": [
+     "",
+     [
+      "ExposureTest-",
+      {
+       "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+      },
+      "-NONE"
+     ]
+    ]
+   },
+   "Export": {
+    "Name": {
+     "Fn::Join": [
+      ":",
+      [
+       {
+        "Ref": "referencetoamplifyimmunyappsooryasandboxe8e77bc7aedataamplifyDataGraphQLAPI8C1595ECApiId"
+       },
+       "GetAtt:ExposureTestTable:Name"
+      ]
+     ]
+    }
+   }
+  }
+ }
+}

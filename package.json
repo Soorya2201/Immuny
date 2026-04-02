@@ -3,24 +3,30 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20 <23"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "sandbox": "ampx sandbox"
   },
   "dependencies": {
     "@aws-amplify/backend": "^1.21.0",
     "@aws-amplify/ui-react": "^6.15.0",
+    "@aws-sdk/client-bedrock-runtime": "^3.1007.0",
     "@aws-sdk/client-sagemaker-runtime": "^3.989.0",
     "@gradio/client": "^2.0.4",
     "aws-amplify": "^6.16.2",
-    "aws-cdk-lib": "^2.238.0",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-media-recorder": "^1.7.2"
   },
   "devDependencies": {
+    "@aws-amplify/backend-cli": "^1.8.2",
+    "aws-cdk": "^2.1111.0",
     "@eslint/js": "^9.39.1",
     "@types/node": "^24.10.1",
     "@types/react": "^19.2.7",
