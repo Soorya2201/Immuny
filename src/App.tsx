@@ -39,6 +39,121 @@ interface HistoryTurn {
 
 type Page = 'chat' | 'profile' | 'symptom-logger' | 'exposure-testing';
 
+// ─── CONVERSATIONAL LOGGING STATE MACHINE ──────────────────────────────────────
+type LoggingEntryType = 'Exposure' | 'Symptom' | 'Medication';
+
+interface FieldDef {
+  key: string;
+  label: string;
+  question: string;          // natural prompt for Nova Micro
+  options?: string[];         // if present, fuzzy-match against these
+  type?: 'number' | 'text' | 'select' | 'time';  // parsing hint
+  optional?: boolean;
+}
+
+interface LoggingSession {
+  entryType: LoggingEntryType;
+  currentFieldIndex: number;
+  collectedData: Record<string, string>;
+  awaitingConfirmation?: boolean;  // waiting for user to confirm before submit
+}
+
+const SYMPTOM_OPTIONS = ['Hives', 'Swelling', 'Itching', 'Nausea', 'Vomiting', 'Stomach Pain', 'Difficulty Breathing', 'Dizziness', 'Headache', 'Rash', 'Other'];
+const MED_ROUTE_OPTIONS = ['Oral', 'Topical', 'Injectable', 'Inhaled'];
+const MED_UNIT_OPTIONS = ['mg', 'ml', 'mcg', 'units', 'puffs'];
+const EXPOSURE_TYPE_OPTIONS = ['Meal', 'Product', 'Environmental', 'Other'];
+
+const FIELD_SCRIPTS: Record<LoggingEntryType, FieldDef[]> = {
+  Symptom: [
+    { key: 'name', label: 'Symptom', question: 'Ask the user which symptom they are experiencing. Mention options: Hives, Swelling, Itching, Nausea, Vomiting, Stomach Pain, Difficulty Breathing, Dizziness, Headache, Rash, or Other.', type: 'select', options: SYMPTOM_OPTIONS },
+    { key: 'severity', label: 'Severity', question: 'Ask the user to rate the severity of their symptom on a scale of 1 to 10.', type: 'number' },
+    { key: 'bodyArea', label: 'Body Area', question: 'Ask the user which body area is affected (e.g., face, arms, throat).', type: 'text', optional: true },
+    { key: 'notes', label: 'Notes', question: 'Ask the user if they have any additional notes about this symptom. They can say "skip" if none.', type: 'text', optional: true },
+  ],
+  Exposure: [
+    { key: 'subtype', label: 'Type', question: 'Ask what type of exposure this is: Meal, Product, Environmental, or Other.', type: 'select', options: EXPOSURE_TYPE_OPTIONS },
+    { key: 'name', label: 'Name', question: 'Ask the user to describe what they were exposed to (e.g., "Chicken Caesar Salad", "New lotion").', type: 'text' },
+    { key: 'tags', label: 'Ingredients/Tags', question: 'Ask the user to list the key ingredients or tags, separated by commas. They can say "skip" if unsure.', type: 'text', optional: true },
+    { key: 'details', label: 'Details', question: 'Ask the user for any additional details about the exposure. They can say "skip" if none.', type: 'text', optional: true },
+  ],
+  Medication: [
+    { key: 'name', label: 'Medication Name', question: 'Ask the user which medication they took (e.g., Benadryl, EpiPen).', type: 'text' },
+    { key: 'dose', label: 'Dose', question: 'Ask the user what dose they took (just the number, e.g., 25).', type: 'text' },
+    { key: 'unit', label: 'Unit', question: 'Ask what unit the dose is in: mg, ml, mcg, units, or puffs.', type: 'select', options: MED_UNIT_OPTIONS },
+    { key: 'route', label: 'Route', question: 'Ask how they took the medication: Oral, Topical, Injectable, or Inhaled.', type: 'select', options: MED_ROUTE_OPTIONS },
+    { key: 'reason', label: 'Reason', question: 'Ask why they took this medication (e.g., allergic reaction, prevention).', type: 'text', optional: true },
+    { key: 'notes', label: 'Notes', question: 'Ask the user if they have any additional notes about this medication. They can say "skip" if none.', type: 'text', optional: true },
+  ],
+};
+
+// ─── INTENT DETECTION ─────────────────────────────────────────────────────────
+const LOGGING_INTENT_RE: { type: LoggingEntryType; pattern: RegExp }[] = [
+  { type: 'Symptom',    pattern: /\b(log|record|track|add|note|enter|save)\b[\s\w]{0,12}\b(symptom|symptoms)\b/i },
+  { type: 'Exposure',   pattern: /\b(log|record|track|add|note|enter|save)\b[\s\w]{0,12}\b(exposure|meal|food|what i ate|what i eat)\b/i },
+  { type: 'Medication', pattern: /\b(log|record|track|add|note|enter|save)\b[\s\w]{0,12}\b(medication|medicine|med|drug|pill)\b/i },
+  // Also detect reversed phrasing: "symptom log", "i want to log"
+  { type: 'Symptom',    pattern: /\b(symptom|symptoms)\b[\s\w]{0,8}\b(log|record|track)\b/i },
+  { type: 'Exposure',   pattern: /\b(exposure|meal)\b[\s\w]{0,8}\b(log|record|track)\b/i },
+  { type: 'Medication', pattern: /\b(medication|medicine|med)\b[\s\w]{0,8}\b(log|record|track)\b/i },
+];
+
+const detectLoggingIntent = (text: string): LoggingEntryType | null => {
+  for (const { type, pattern } of LOGGING_INTENT_RE) {
+    if (pattern.test(text)) return type;
+  }
+  return null;
+};
+
+// ─── ANSWER PARSING ───────────────────────────────────────────────────────────
+const fuzzyMatch = (input: string, options: string[]): string | null => {
+  const lower = input.toLowerCase().trim();
+  // Exact match
+  const exact = options.find(o => o.toLowerCase() === lower);
+  if (exact) return exact;
+  // Starts-with match
+  const starts = options.find(o => o.toLowerCase().startsWith(lower));
+  if (starts) return starts;
+  // Contains match
+  const contains = options.find(o => o.toLowerCase().includes(lower) || lower.includes(o.toLowerCase()));
+  if (contains) return contains;
+  return null;
+};
+
+const parseFieldAnswer = (raw: string, field: FieldDef): { value: string; valid: boolean; hint?: string } => {
+  const trimmed = raw.trim();
+  // Skip / none handling for optional fields
+  if (field.optional && /^(skip|none|no|n\/a|nothing|pass)$/i.test(trimmed)) {
+    return { value: '', valid: true };
+  }
+  // Cancel detection
+  if (/^(cancel|stop|quit|exit|abort|nevermind)$/i.test(trimmed)) {
+    return { value: '__CANCEL__', valid: true };
+  }
+
+  if (field.type === 'select' && field.options) {
+    const matched = fuzzyMatch(trimmed, field.options);
+    if (matched) return { value: matched, valid: true };
+    return { value: '', valid: false, hint: `Please choose one of: ${field.options.join(', ')}` };
+  }
+  if (field.type === 'number') {
+    const num = trimmed.match(/(\d+)/)?.[1];
+    if (num) {
+      const n = parseInt(num);
+      if (field.key === 'severity' && (n < 1 || n > 10)) {
+        return { value: '', valid: false, hint: 'Please give a number between 1 and 10.' };
+      }
+      return { value: num, valid: true };
+    }
+    return { value: '', valid: false, hint: 'I need a number here. Could you try again?' };
+  }
+  // Free text
+  if (!trimmed) {
+    if (field.optional) return { value: '', valid: true };
+    return { value: '', valid: false, hint: `Please provide a value for ${field.label}.` };
+  }
+  return { value: trimmed, valid: true };
+};
+
 // ─── MEDICAL TRIAGE KEYWORDS ──────────────────────────────────────────────────
 const MEDICAL_KEYWORDS = [
   'allerg', 'rash', 'hive', 'itch', 'swell', 'anaphyla', 'epipen',
@@ -201,6 +316,9 @@ export default function App() {
   const [quickReplies, setQuickReplies] = useState<string[]>([]);  // current options shown
   const [selectedReplies, setSelectedReplies] = useState<Set<string>>(new Set());
 
+  // ── Conversational Logging State ──
+  const [loggingSession, setLoggingSession] = useState<LoggingSession | null>(null);
+
   // Voice Settings
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -351,6 +469,121 @@ export default function App() {
   };
   const clearImage = () => { setPendingImage(null); setImagePreview(null); };
 
+  // ── CONVERSATIONAL LOGGING HELPERS ────────────────────────────────────────────
+  const askLoggingQuestion = async (entryType: LoggingEntryType, field: FieldDef) => {
+    try {
+      const prompt = `You are helping the user log a ${entryType}. ${field.question} Keep it friendly and under 20 words. Do NOT add any prefix like "Sure!" — just ask the question directly.`;
+      const result = await client.queries.askNovaMicro({
+        question: prompt,
+        history: JSON.stringify(chatHistory.slice(-4)),
+      });
+      const questionText = String(result.data ?? field.question).trim();
+      injectBubbles(questionText, 'nova', false);
+      setChatHistory(prev => [...prev, { role: 'assistant', content: questionText }].slice(-20) as HistoryTurn[]);
+    } catch {
+      // Fallback: use the raw question text
+      const fallback = `What is the ${field.label.toLowerCase()}?`;
+      injectBubbles(fallback, 'nova', false);
+    }
+  };
+
+  const startLoggingSession = async (entryType: LoggingEntryType) => {
+    const session: LoggingSession = { entryType, currentFieldIndex: 0, collectedData: {} };
+    setLoggingSession(session);
+    // Announce
+    const announcement = `📋 Sure! Let's log a ${entryType.toLowerCase()}. I'll ask you a few questions.`;
+    injectBubbles(announcement, 'nova', false);
+    // Ask first question after a short delay
+    const fields = FIELD_SCRIPTS[entryType];
+    setTimeout(() => void askLoggingQuestion(entryType, fields[0]), 800);
+  };
+
+  const cancelLoggingSession = () => {
+    setLoggingSession(null);
+    injectBubbles('✅ Logging cancelled. Feel free to chat normally!', 'nova', false);
+  };
+
+  const submitLoggedEntry = async (session: LoggingSession) => {
+    const { entryType, collectedData } = session;
+    const now = new Date().toISOString().slice(0, 16);
+    try {
+      const basePayload: Record<string, unknown> = {
+        type: entryType,
+        time: now,
+      };
+
+      if (entryType === 'Symptom') {
+        basePayload.name = collectedData.name || 'Unknown';
+        basePayload.severity = collectedData.severity ? parseInt(collectedData.severity) : undefined;
+        basePayload.bodyArea = collectedData.bodyArea || undefined;
+        basePayload.notes = collectedData.notes || undefined;
+      } else if (entryType === 'Exposure') {
+        basePayload.subtype = collectedData.subtype || undefined;
+        basePayload.name = collectedData.name || 'Unknown';
+        basePayload.tags = collectedData.tags ? JSON.stringify(collectedData.tags.split(',').map((t: string) => t.trim()).filter(Boolean)) : undefined;
+        basePayload.details = collectedData.details || undefined;
+      } else if (entryType === 'Medication') {
+        basePayload.name = collectedData.name || 'Unknown';
+        basePayload.dose = collectedData.dose || undefined;
+        basePayload.unit = collectedData.unit || undefined;
+        basePayload.route = collectedData.route || undefined;
+        basePayload.reason = collectedData.reason || undefined;
+        basePayload.notes = collectedData.notes || undefined;
+      }
+
+      await client.models.HealthEntry.create(basePayload as Parameters<typeof client.models.HealthEntry.create>[0]);
+
+      setLoggingSession(null);
+      const summary = entryType === 'Symptom'
+        ? `${collectedData.name} (severity ${collectedData.severity || '?'}/10)`
+        : entryType === 'Exposure'
+        ? `${collectedData.subtype || ''} — ${collectedData.name}`
+        : `${collectedData.name} ${collectedData.dose || ''}${collectedData.unit || ''}`;
+      injectBubbles(`✅ ${entryType} logged successfully!\n📋 ${summary}\nYou can view it in the Health Logger page.`, 'nova', false);
+    } catch (e) {
+      console.error('Failed to save logged entry:', e);
+      setLoggingSession(null);
+      injectBubbles('❌ Sorry, I couldn\'t save that entry. Please try logging it manually in the Health Logger.', 'nova', false);
+    }
+  };
+
+  const handleLoggingAnswer = async (userText: string) => {
+    if (!loggingSession) return;
+    const { entryType, currentFieldIndex, collectedData } = loggingSession;
+    const fields = FIELD_SCRIPTS[entryType];
+    const currentField = fields[currentFieldIndex];
+
+    const parsed = parseFieldAnswer(userText, currentField);
+
+    // Cancel
+    if (parsed.value === '__CANCEL__') {
+      cancelLoggingSession();
+      return;
+    }
+
+    // Invalid answer — re-ask
+    if (!parsed.valid) {
+      injectBubbles(parsed.hint || `Could you try that again?`, 'nova', false);
+      return;
+    }
+
+    // Store the answer
+    const updatedData = { ...collectedData, [currentField.key]: parsed.value };
+    const nextIndex = currentFieldIndex + 1;
+
+    if (nextIndex >= fields.length) {
+      // All fields collected — submit
+      const finalSession: LoggingSession = { entryType, currentFieldIndex: nextIndex, collectedData: updatedData };
+      setLoggingSession(finalSession);
+      await submitLoggedEntry(finalSession);
+    } else {
+      // Move to next field
+      const nextSession: LoggingSession = { entryType, currentFieldIndex: nextIndex, collectedData: updatedData };
+      setLoggingSession(nextSession);
+      setTimeout(() => void askLoggingQuestion(entryType, fields[nextIndex]), 500);
+    }
+  };
+
   // ── THE AGENTIC ROUTER ──────────────────────────────────────────────────────
   //
   //  Image        → MedGemma vision     (Colab /analyse-image)
@@ -397,6 +630,26 @@ export default function App() {
     setLoading(true);
     const capturedImage = pendingImage;
     clearImage();
+
+    // ── CONVERSATIONAL LOGGING INTERCEPT ────────────────────────────────────
+    // If a logging session is active, route the answer to the state machine
+    if (loggingSession && !capturedImage) {
+      setChatHistory(prev => [...prev, { role: 'user', content: userContent }].slice(-20) as HistoryTurn[]);
+      setLoading(false);
+      await handleLoggingAnswer(userContent);
+      return;
+    }
+
+    // Check if the user wants to START a new logging session
+    if (!capturedImage) {
+      const intent = detectLoggingIntent(userContent);
+      if (intent) {
+        setChatHistory(prev => [...prev, { role: 'user', content: userContent }].slice(-20) as HistoryTurn[]);
+        setLoading(false);
+        await startLoggingSession(intent);
+        return;
+      }
+    }
 
     // Stamp userId from Amplify Authenticator
     const userId = document.body.dataset.userId ?? 'anonymous';
@@ -626,6 +879,25 @@ export default function App() {
       </div>
 
       <div className="chat-input-container">
+        {/* ── Logging Session Banner ──────────────────────────────── */}
+        {loggingSession && (
+          <div style={{
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '8px 14px', marginBottom: 6, borderRadius: 8,
+            background: 'linear-gradient(135deg, #D1E7F4, #E8F5E9)',
+            border: '1px solid #4A7BA7', fontSize: 13, fontWeight: 600, color: '#2E5A7E',
+          }}>
+            <span>
+              📋 Logging {loggingSession.entryType}
+              {' '}
+              ({Math.min(loggingSession.currentFieldIndex + 1, FIELD_SCRIPTS[loggingSession.entryType].length)}/{FIELD_SCRIPTS[loggingSession.entryType].length})
+            </span>
+            <button onClick={cancelLoggingSession} style={{
+              background: '#DC2626', color: '#fff', border: 'none', borderRadius: 6,
+              padding: '4px 10px', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+            }}>Cancel</button>
+          </div>
+        )}
         {isSpeaking && (
           <div className="speaking-banner">
             <span>🔊 Speaking ({selectedVoice?.name || 'Default Voice'})…</span>
