@@ -1,4 +1,4 @@
-# 🛡️ ImmunyAI: Multimodal Allergy & Health Ally
+# 🛡️ ImmunyAI: Health Ally
 
 ![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
 ![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
@@ -12,7 +12,7 @@ By combining **Vision-Language Models (VLMs)**, **Voice UI**, and **IoT Wearable
 
 ---
 
-## 🚀 The Pitch: Why ImmunyAI?
+## Why ImmunyAI?
 Managing daily health, especially severe allergies, shouldn't be a guessing game. ImmunyAI replaces fragmented health apps with a unified, context-aware intelligence. It doesn't just log data; it *understands* it. 
 
 Whether it's analyzing a photo of a sudden skin rash, passively monitoring a smartwatch for anaphylactic shock signatures (SpO2 drops, HR spikes), or generating micro-dosing schedules for exposure therapy, ImmunyAI processes complex, multi-dimensional health data in real-time.
