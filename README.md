@@ -78,9 +78,23 @@ Because the MedGemma model requires a dedicated GPU (16GB+ VRAM), the backend is
 4. Run all cells. The final output will yield a public Ngrok URL (e.g., `https://xxxx.ngrok-free.app`).
 
 ### 2. Configure the Frontend
-1. Clone this repository: `git clone https://github.com/yourusername/immuny-app.git`
-2. Navigate to the project directory: `cd immuny-app`
+1. Clone this repository: `git clone https://github.com/Soorya2201/Immuny.git`
+2. Navigate to the project directory: `cd Immuny`
 3. Install dependencies: `npm install`
 4. Open `src/App.tsx` and update the `COLAB_BASE_URL` constant with the Ngrok URL generated in step 1:
    ```typescript
-   const COLAB_BASE_URL = "[https://YOUR-NGROK-URL.ngrok-free.app](https://YOUR-NGROK-URL.ngrok-free.app)";
+   const COLAB_BASE_URL = "https://YOUR-NGROK-URL.ngrok-free.app";
+   ```
+5. Start the dev server: `npm run dev`
+
+---
+
+## Status
+
+This is an early-access build — the AI inference backend runs on an ephemeral Colab/Ngrok tunnel rather than persistent infrastructure, so it's best run locally following the steps above rather than treated as an always-on hosted service.
+
+---
+
+## License
+
+MIT — see [LICENSE](LICENSE) for details.
