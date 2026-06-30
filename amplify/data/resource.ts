@@ -59,6 +59,18 @@ const schema = a.schema({
     notes: a.string(),
   }).authorization(allow => [allow.owner()]),
 
+  // ── Community posts ──────────────────────────────────────────────────────
+  CommunityPost: a.model({
+    authorUsername: a.string(),       // null when anonymous
+    anonymous: a.boolean(),
+    title: a.string().required(),
+    content: a.string().required(),
+    likes: a.integer(),
+  }).authorization(allow => [
+    allow.owner(),
+    allow.authenticated().to(['read', 'list', 'update']), // any auth user can like
+  ]),
+
   // ── MedGemma (detailed medical — Colab/Ngrok) ────────────────────────────
   askMedGemma: a.query()
     .arguments({ question: a.string() })
@@ -68,8 +80,9 @@ const schema = a.schema({
 
   // ── Nova Micro (fast casual — AWS Bedrock) ───────────────────────────────
   // history: JSON string of last N turns [{ role, content }]
+  // context: compact session summary (allergies, current topic, symptoms)
   askNovaMicro: a.query()
-    .arguments({ question: a.string(), history: a.string() })
+    .arguments({ question: a.string(), history: a.string(), context: a.string() })
     .returns(a.string())
     .authorization((allow) => [allow.authenticated()])
     .handler(a.handler.function(askNovaMicro)),

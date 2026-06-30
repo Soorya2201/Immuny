@@ -4,22 +4,29 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../amplify/data/resource';
 import '@aws-amplify/ui-react/styles.css';
 import './App.css';
-import immunyLogo from './assets/immuny-logo.png';
+import beaImg from './assets/bea.png';
 
 // ─── COMPONENT IMPORTS ────────────────────────────────────────────────────────
 import ProfilePage from './components/ProfilePage';
 import SymptomLoggerPage from './components/SymptomLogger';
 import ExposureTestingPage from './components/ExposureTesting';
+import HomePage from './components/HomePage';
+import InsightsPage from './components/InsightsPage';
+import VoicePage from './components/VoicePage';
+import CommunityPage from './components/CommunityPage';
+import BottomNav from './components/BottomNav';
+import type { Page } from './types';
 
 // ── 🔴 WATCH SENSOR FEATURE (COMMENTED OUT — ready for future integration) ──
 // import WatchStatus, { type Vitals } from './components/WatchStatus';
 
 const client = generateClient<Schema>();
 
-// ─── 🔗 API ENDPOINTS ─────────────────────────────────────────────────────────
-const COLAB_BASE_URL = "https://available-lifestyle-additional-hunting.trycloudflare.com"; // 🔴 Replace with your Ngrok URL
+// ─── 🔗 API ENDPOINTS (MedGemma — disabled, kept for future re-enable) ────────
+const COLAB_BASE_URL = "https://available-lifestyle-additional-hunting.trycloudflare.com";
 const AGENT_URL = `${COLAB_BASE_URL}/agent/ask`;
 const IMAGE_URL = `${COLAB_BASE_URL}/analyse-image`;
+const MEDGEMMA_ENABLED = false; // set to true + deploy Colab to re-enable
 
 // ─── TYPES ────────────────────────────────────────────────────────────────────
 interface Message {
@@ -27,9 +34,8 @@ interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  source?: 'nova' | 'medgemma';
+  source?: 'nova';
   imagePreview?: string;
-  quickReplies?: string[];
 }
 
 interface HistoryTurn {
@@ -37,7 +43,68 @@ interface HistoryTurn {
   content: string;
 }
 
-type Page = 'chat' | 'profile' | 'symptom-logger' | 'exposure-testing';
+// ─── SESSION CONTEXT (Live Memory) ───────────────────────────────────────────
+// This is the "working memory" of the conversation. It tracks entities and
+// topics the user mentions so Nova can reference them across turns naturally.
+interface SessionContext {
+  knownAllergies: string[];        // e.g. ["shellfish", "peanuts"]
+  currentSymptoms: string[];       // symptoms mentioned this session
+  currentTopic: string | null;     // e.g. "reaction at restaurant"
+  lastMentionedFood: string | null;
+  lastMentionedMedication: string | null;
+  urgencyLevel: 'normal' | 'elevated' | 'emergency';
+  turnCount: number;
+}
+
+const INITIAL_SESSION_CONTEXT: SessionContext = {
+  knownAllergies: [],
+  currentSymptoms: [],
+  currentTopic: null,
+  lastMentionedFood: null,
+  lastMentionedMedication: null,
+  urgencyLevel: 'normal',
+  turnCount: 0,
+};
+
+// ─── ENTITY EXTRACTORS ────────────────────────────────────────────────────────
+const ALLERGY_FOOD_RE = /\b(shellfish|shrimp|crab|lobster|peanut|nut|dairy|milk|gluten|wheat|soy|egg|fish|sesame|tree nut|latex|bee|wasp|penicillin|aspirin|ibuprofen|sulfa|mold|dust|pollen|cat|dog|pet)s?\b/gi;
+const SYMPTOM_ENTITY_RE = /\b(hives?|swelling|itch(?:ing)?|rash|nausea|vomit(?:ing)?|dizziness|dizzy|wheezing|wheeze|throat tightening|anaphylaxis|cramps?|bloating|stomach pain|difficulty breathing|headache|tingling|redness|bumps?)\b/gi;
+const MEDICATION_RE = /\b(benadryl|epipen|epinephrine|cetirizine|zyrtec|claritin|loratadine|prednisone|prednisolone|inhaler|montelukast|singulair|diphenhydramine|hydroxyzine|cortisone|steroid)s?\b/gi;
+const FOOD_RE = /\b(ate|eating|eat|had|having|consumed?|tried?)\s+(?:some\s+)?([\w\s]{2,25}?)(?:\s+and|\s+which|\s+that|\.|,|$)/gi;
+const EMERGENCY_RE = /\b(can'?t breathe|throat closing|anaphylaxis|epipen|epinephrine|emergency|911|can not breathe|unable to breathe|severe reaction|face swelling|lips? swelling)\b/i;
+const ELEVATED_RE = /\b(difficulty breathing|tight(?:ness)?|wheez|throat|spreading|getting worse|severe|bad reaction|not improving|still swelling)\b/i;
+
+const extractEntities = (text: string) => ({
+  allergies: [...new Set((text.match(ALLERGY_FOOD_RE) ?? []).map(s => s.toLowerCase()))],
+  symptoms: [...new Set((text.match(SYMPTOM_ENTITY_RE) ?? []).map(s => s.toLowerCase()))],
+  medications: [...new Set((text.match(MEDICATION_RE) ?? []).map(s => s.toLowerCase()))],
+  isEmergency: EMERGENCY_RE.test(text),
+  isElevated: ELEVATED_RE.test(text),
+});
+
+// ─── CONTEXT SERIALIZER ───────────────────────────────────────────────────────
+// Produces a compact 1-3 sentence summary injected into every Nova call.
+const buildContextSummary = (ctx: SessionContext): string | null => {
+  if (ctx.turnCount === 0) return null; // no context yet on first turn
+  const parts: string[] = [];
+  if (ctx.knownAllergies.length > 0)
+    parts.push(`User has known allergies to: ${ctx.knownAllergies.join(', ')}.`);
+  if (ctx.currentSymptoms.length > 0)
+    parts.push(`Symptoms mentioned this session: ${ctx.currentSymptoms.join(', ')}.`);
+  if (ctx.currentTopic)
+    parts.push(`Current topic: ${ctx.currentTopic}.`);
+  if (ctx.lastMentionedFood)
+    parts.push(`Last food mentioned: ${ctx.lastMentionedFood}.`);
+  if (ctx.lastMentionedMedication)
+    parts.push(`Medication mentioned: ${ctx.lastMentionedMedication}.`);
+  if (ctx.urgencyLevel === 'emergency')
+    parts.push('URGENT: User may be experiencing a severe/emergency reaction.');
+  else if (ctx.urgencyLevel === 'elevated')
+    parts.push('Note: User\'s symptoms may be worsening — stay attentive.');
+  return parts.length > 0 ? parts.join(' ') : null;
+};
+
+// Page type is defined in src/types.ts — imported above
 
 // ─── CONVERSATIONAL LOGGING STATE MACHINE ──────────────────────────────────────
 type LoggingEntryType = 'Exposure' | 'Symptom' | 'Medication';
@@ -244,77 +311,16 @@ const cleanModelOutput = (raw: string): string => {
 // Instead of instructing MedGemma to emit a structured token (unreliable),
 // we detect a symptom-question pattern in whatever MedGemma naturally writes,
 // then serve relevant options from the frontend.
-//
-// Pipeline:
-//  1. Detect if MedGemma is asking about symptoms (regex on response text)
-//  2. Try to extract bullet/numbered list items from the response itself
-//  3. Fall back to curated context-aware presets based on the user query
-//  4. Last-resort: generic allergy symptom list
-const SYMPTOM_QUESTION_RE =
-  /which (of the following |specific |)symptoms|what symptoms|are you (currently |)(experiencing|having|feeling|noticing)|do you (have|notice|feel|experience)|what (are you|do you) (feeling|experiencing|noticing|having)|symptoms (are you|have you|do you)|any of these symptoms|please (let me know|tell me|describe|list)/i;
-
-const CONTEXT_SYMPTOM_PRESETS: Record<string, string[]> = {
-  shellfish: ['Hives', 'Swelling', 'Nausea', 'Difficulty breathing', 'Tingling lips', 'Stomach cramps'],
-  seafood: ['Hives', 'Swelling', 'Nausea', 'Difficulty breathing', 'Tingling lips', 'Stomach cramps'],
-  peanut: ['Hives', 'Throat tightening', 'Swelling', 'Nausea', 'Dizziness', 'Difficulty breathing'],
-  nut: ['Hives', 'Throat tightening', 'Swelling', 'Nausea', 'Dizziness', 'Difficulty breathing'],
-  dairy: ['Bloating', 'Nausea', 'Stomach pain', 'Diarrhea', 'Hives', 'Cramping'],
-  milk: ['Bloating', 'Nausea', 'Stomach pain', 'Diarrhea', 'Hives', 'Cramping'],
-  gluten: ['Bloating', 'Stomach pain', 'Fatigue', 'Rash', 'Nausea', 'Headache'],
-  wheat: ['Bloating', 'Stomach pain', 'Fatigue', 'Rash', 'Nausea', 'Headache'],
-  bee: ['Hives', 'Swelling', 'Dizziness', 'Difficulty breathing', 'Nausea', 'Chest tightness'],
-  sting: ['Hives', 'Swelling', 'Dizziness', 'Difficulty breathing', 'Nausea', 'Chest tightness'],
-  medication: ['Rash', 'Hives', 'Swelling', 'Nausea', 'Dizziness', 'Difficulty breathing'],
-  benadryl: ['Still unwell', 'Drowsiness', 'Hives', 'Swelling', 'Nausea', 'Difficulty breathing'],
-  reaction: ['Hives', 'Itching', 'Swelling', 'Nausea', 'Rash', 'Difficulty breathing'],
-};
-
-const GENERIC_SYMPTOMS = ['Hives', 'Itching', 'Swelling', 'Nausea', 'Rash', 'Difficulty breathing'];
-
-const extractQuickRepliesFromResponse = (
-  responseText: string,
-  userQuery: string,
-): string[] => {
-  // 1 — Is MedGemma asking a symptom question?
-  if (!SYMPTOM_QUESTION_RE.test(responseText)) return [];
-
-  // 2 — Try to pull items from bullet / numbered lists in the response
-  const bulletLines = responseText.match(/(?:^|\n)\s*[-•*‣▪●]\s*([^\n]{3,50})/gm);
-  const numberedLines = responseText.match(/(?:^|\n)\s*\d+[.):]\s*([^\n]{3,50})/gm);
-  const listSource = (bulletLines?.length ?? 0) >= 2 ? bulletLines : (numberedLines?.length ?? 0) >= 2 ? numberedLines : null;
-  if (listSource) {
-    const items = listSource
-      .map(line => line.replace(/^[\s\n]*[-•*‣▪●\d.):\s]+/, '').trim())
-      // Trim any trailing punctuation like bold markers or colons
-      .map(s => s.replace(/[*_:]+$/, '').trim())
-      .filter(s => s.length > 2 && s.length < 45);
-    if (items.length >= 2) return items.slice(0, 6);
-  }
-
-  // 3 — Contextual presets from user query keywords
-  const queryLower = userQuery.toLowerCase();
-  for (const [keyword, preset] of Object.entries(CONTEXT_SYMPTOM_PRESETS)) {
-    if (queryLower.includes(keyword)) return preset;
-  }
-
-  // 4 — Generic fallback
-  return GENERIC_SYMPTOMS;
-};
-
 export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatHistory, setChatHistory] = useState<HistoryTurn[]>([]);
+  const [sessionContext, setSessionContext] = useState<SessionContext>(INITIAL_SESSION_CONTEXT);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
-  const [menuOpen, setMenuOpen] = useState(false);
-  const [currentPage, setCurrentPage] = useState<Page>('chat');
+  const [currentPage, setCurrentPage] = useState<Page>('home');
   const [hasGreeted, setHasGreeted] = useState(false);
-
-  // Quick-reply checkbox state
-  const [quickReplies, setQuickReplies] = useState<string[]>([]);  // current options shown
-  const [selectedReplies, setSelectedReplies] = useState<Set<string>>(new Set());
 
   // ── Conversational Logging State ──
   const [loggingSession, setLoggingSession] = useState<LoggingSession | null>(null);
@@ -469,13 +475,41 @@ export default function App() {
   };
   const clearImage = () => { setPendingImage(null); setImagePreview(null); };
 
+  // ── SESSION CONTEXT UPDATER ───────────────────────────────────────────────────
+  // Called after every exchange to keep the live session memory up to date.
+  const updateSessionContext = (userText: string, assistantText: string) => {
+    const userEntities = extractEntities(userText);
+    const assistantEntities = extractEntities(assistantText);
+    setSessionContext(prev => {
+      const next = { ...prev, turnCount: prev.turnCount + 1 };
+      // Merge new allergies (deduplicated)
+      if (userEntities.allergies.length > 0)
+        next.knownAllergies = [...new Set([...prev.knownAllergies, ...userEntities.allergies])];
+      // Merge new symptoms
+      const newSymptoms = [...userEntities.symptoms, ...assistantEntities.symptoms];
+      if (newSymptoms.length > 0)
+        next.currentSymptoms = [...new Set([...prev.currentSymptoms, ...newSymptoms])].slice(-8);
+      // Track last medication mentioned
+      const meds = [...userEntities.medications, ...assistantEntities.medications];
+      if (meds.length > 0) next.lastMentionedMedication = meds[meds.length - 1];
+      // Derive current topic from user's message (first 60 chars as topic hint)
+      const topicHint = userText.trim().slice(0, 60);
+      if (topicHint.length > 10) next.currentTopic = topicHint;
+      // Urgency escalation — never de-escalate within a session
+      if (userEntities.isEmergency) next.urgencyLevel = 'emergency';
+      else if (userEntities.isElevated && prev.urgencyLevel === 'normal') next.urgencyLevel = 'elevated';
+      return next;
+    });
+  };
+
   // ── CONVERSATIONAL LOGGING HELPERS ────────────────────────────────────────────
   const askLoggingQuestion = async (entryType: LoggingEntryType, field: FieldDef) => {
     try {
-      const prompt = `You are helping the user log a ${entryType}. ${field.question} Keep it friendly and under 20 words. Do NOT add any prefix like "Sure!" — just ask the question directly.`;
+      const prompt = `You are helping the user log a ${entryType}. ${field.question} Keep it friendly and conversational. Do NOT add any prefix like "Sure!" — just ask the question directly.`;
       const result = await client.queries.askNovaMicro({
         question: prompt,
         history: JSON.stringify(chatHistory.slice(-4)),
+        context: buildContextSummary(sessionContext) ?? undefined,
       });
       const questionText = String(result.data ?? field.question).trim();
       injectBubbles(questionText, 'nova', false);
@@ -586,25 +620,12 @@ export default function App() {
 
   // ── THE AGENTIC ROUTER ──────────────────────────────────────────────────────
   //
-  //  Image        → MedGemma vision     (Colab /analyse-image)
-  //  Medical text → MedGemma /agent/ask (Colab, with chat history context)
-  //  Casual text  → Nova Micro          (AWS Bedrock, ≤8 words)
+  //  Image        → MedGemma vision     (Colab /analyse-image — disabled)
+  //  Medical text → MedGemma /agent/ask (Colab — disabled)
+  //  All text     → Nova Micro          (AWS Bedrock)
   //
   //  Every response is sentence-split into separate chat bubbles.
   //  All interactions are logged to DynamoDB via logConversationEvent.
-  //
-  // ── Submit selected quick-reply checkboxes as a user message ─────────────
-  const submitQuickReplies = async () => {
-    if (selectedReplies.size === 0) return;
-    const text = `I am experiencing: ${[...selectedReplies].join(', ')}`;
-    setQuickReplies([]);
-    setSelectedReplies(new Set());
-    setInputText(text);
-    // Use a tiny timeout so inputText state settles before sendMessage reads it
-    setTimeout(() => {
-      void sendMessageWithText(text);
-    }, 0);
-  };
 
   const sendMessage = async () => sendMessageWithText(inputText);
 
@@ -625,16 +646,22 @@ export default function App() {
 
     setMessages(prev => [...prev, userMsg]);
     setInputText('');
-    setQuickReplies([]);
-    setSelectedReplies(new Set());
     setLoading(true);
     const capturedImage = pendingImage;
     clearImage();
 
+    // ── FIX: Add user turn to history BEFORE calling API ────────────────────
+    // This ensures the current message is visible in the history sent to Nova,
+    // preventing the "forgets what I just said" bug.
+    const updatedHistory: HistoryTurn[] = [
+      ...chatHistory,
+      { role: 'user' as const, content: userContent },
+    ].slice(-20);
+    setChatHistory(updatedHistory);
+
     // ── CONVERSATIONAL LOGGING INTERCEPT ────────────────────────────────────
     // If a logging session is active, route the answer to the state machine
     if (loggingSession && !capturedImage) {
-      setChatHistory(prev => [...prev, { role: 'user', content: userContent }].slice(-20) as HistoryTurn[]);
       setLoading(false);
       await handleLoggingAnswer(userContent);
       return;
@@ -644,7 +671,6 @@ export default function App() {
     if (!capturedImage) {
       const intent = detectLoggingIntent(userContent);
       if (intent) {
-        setChatHistory(prev => [...prev, { role: 'user', content: userContent }].slice(-20) as HistoryTurn[]);
         setLoading(false);
         await startLoggingSession(intent);
         return;
@@ -654,19 +680,17 @@ export default function App() {
     // Stamp userId from Amplify Authenticator
     const userId = document.body.dataset.userId ?? 'anonymous';
 
-    // Keep a rolling 10-turn history for MedGemma context
-    const historySnapshot: HistoryTurn[] = [
-      ...chatHistory,
-      { role: 'user' as const, content: userContent },
-    ].slice(-10);
+    // History snapshot already includes the current user turn (fixed above)
+    const historySnapshot = updatedHistory.slice(-10);
+    const contextSummary = buildContextSummary(sessionContext);
 
     try {
       let responseText = '';
       let source: Message['source'] = 'nova';
 
-      // ── RULE 1: Image → MedGemma Vision ──────────────────────────────────
-      if (capturedImage) {
-        source = 'medgemma';
+      // ── RULE 1: Image → Nova Micro (MedGemma vision disabled) ───────────
+      if (capturedImage && MEDGEMMA_ENABLED) {
+        // MedGemma image analysis — disabled until COLAB_BASE_URL is live
         const b64 = await new Promise<string>((resolve, reject) => {
           const reader = new FileReader();
           reader.onload = e => resolve((e.target?.result as string).split(',')[1]);
@@ -682,69 +706,37 @@ export default function App() {
         responseText = res.ok
           ? cleanModelOutput(data.response ?? '')
           : `Image Error: ${data.error ?? 'Unknown'}`;
-
-        void logEvent(userId, 'image_analysis', {
-          question: userContent,
-          response_preview: responseText.slice(0, 120),
-        });
+        void logEvent(userId, 'image_analysis', { question: userContent, response_preview: responseText.slice(0, 120) });
       }
 
-      // ── RULE 2: Medical text → MedGemma /agent/ask ───────────────────────
-      else if (isMedicalQuery(userContent)) {
-        source = 'medgemma';
-        console.log('🩺 Medical query → MedGemma');
-
-        void logEvent(userId, 'user_query', { text: userContent, routed_to: 'medgemma' });
-
-        // No prompt injection needed — symptom options are detected from the
-        // natural language response on the frontend (see extractQuickRepliesFromResponse).
+      // ── RULE 2: All text → Nova Micro (MedGemma disabled) ────────────────
+      else if (MEDGEMMA_ENABLED && !capturedImage && isMedicalQuery(userContent)) {
+        // Reserved: MedGemma medical routing — re-enable by setting MEDGEMMA_ENABLED = true
+        const medGemmaQuestion = contextSummary ? `[Context: ${contextSummary}]\n\n${userContent}` : userContent;
         const res = await fetch(AGENT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            question: userContent,
-            history: historySnapshot.slice(-10),
-            biometrics: null,
-          }),
+          body: JSON.stringify({ question: medGemmaQuestion, history: historySnapshot.slice(-10), biometrics: null }),
         });
-
         if (res.ok) {
           const data = await res.json() as { response?: string; error?: string };
           responseText = cleanModelOutput(data.response ?? '');
         } else {
-          try {
-            const data = await res.json() as { error?: string };
-            responseText = `MedGemma Error: ${data.error ?? 'Unknown'}`;
-          } catch {
-            responseText = 'Connection Error: Is Colab running? Ngrok URL correct?';
-          }
+          responseText = 'Connection Error: Is Colab running?';
         }
-
-        // Detect symptom questions and surface contextual quick-reply chips
-        const options = extractQuickRepliesFromResponse(responseText, userContent);
-        if (options.length > 0) {
-          // Defer so the bubbles render first, then show the panel
-          const delay = splitIntoSentences(responseText).length * 350 + 200;
-          setTimeout(() => setQuickReplies(options), delay);
-        }
-
-        void logEvent(userId, 'medical_response', {
-          question: userContent,
-          response_preview: responseText.slice(0, 120),
-        });
       }
 
-      // ── RULE 3: Casual text → Nova Micro (≤ 8 words) ─────────────────────
+      // ── RULE 3: Nova Micro — all queries ─────────────────────────────────
       else {
         source = 'nova';
-        console.log('⚡ Casual query → Nova Micro');
 
         const result = await client.queries.askNovaMicro({
           question: userContent,
-          history: JSON.stringify(chatHistory.slice(-6)),
+          history: JSON.stringify(historySnapshot),
+          context: contextSummary ?? undefined,
         });
         responseText = cleanModelOutput(String(result.data ?? '').trim())
-          || "I'm not sure, ask your doctor!";
+          || "I'm here! Could you tell me a little more about that?";
 
         void logEvent(userId, 'nova_reply', {
           question: userContent,
@@ -756,12 +748,15 @@ export default function App() {
       // Each sentence becomes its own chat bubble with a 350ms stagger
       injectBubbles(responseText, source, true);
 
-      // ── Update rolling chat history ─────────────────────────────────────
+      // ── Update rolling chat history with assistant reply ─────────────────
+      // Note: user turn was already added before the API call (timing fix).
       setChatHistory(prev => [
         ...prev,
-        { role: 'user', content: userContent },
         { role: 'assistant', content: responseText },
-      ].slice(-20) as HistoryTurn[]); // keep last 20 turns
+      ].slice(-20) as HistoryTurn[]);
+
+      // ── Update session context with entities from this exchange ──────────
+      updateSessionContext(userContent, responseText);
 
     } catch (err: unknown) {
       console.error('sendMessage error:', err);
@@ -776,15 +771,26 @@ export default function App() {
     }
   };
 
-  const navigateTo = (page: Page) => { setCurrentPage(page); setMenuOpen(false); };
+  const navigateTo = (page: Page) => setCurrentPage(page);
 
   // ── Chat UI ────────────────────────────────────────────────────────────────
   const renderChat = () => (
     <>
+      {/* ── Bea chat header ── */}
+      <div className="chat-top-bar">
+        <button className="chat-back-btn" onClick={() => navigateTo('home')}>
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="15 18 9 12 15 6"/>
+          </svg>
+        </button>
+        <h1 className="chat-top-title">Bea</h1>
+        <div className="chat-profile-dot" />
+      </div>
+
       <div className="chat-messages">
         {messages.length === 0 ? (
           <div className="empty-chat">
-            <img src={immunyLogo} alt="Immuny" className="bot-logo-large" />
+            <img src={beaImg} alt="Bea" className="bot-logo-large" />
             <h2>Immuny</h2>
             <p className="tagline">ALLERGY AI ALLY</p>
             <div className="quick-actions">
@@ -794,84 +800,25 @@ export default function App() {
             </div>
           </div>
         ) : (
-          messages.map((msg, idx) => {
-            const isLastAssistant =
-              msg.role === 'assistant' &&
-              idx === messages.length - 1 &&
-              !loading &&
-              quickReplies.length > 0;
-            return (
-              <div key={msg.id} className={`message-bubble ${msg.role}`}>
-                {msg.role === 'assistant' && (
-                  <img src={immunyLogo} alt="Immuny" className="message-avatar" />
+          messages.map(msg => (
+            <div key={msg.id} className={`message-bubble ${msg.role}`}>
+              {msg.role === 'assistant' && (
+                <img src={beaImg} alt="Bea" className="message-avatar" />
+              )}
+              <div className="message-content">
+                {msg.imagePreview && (
+                  <img src={msg.imagePreview} alt="Uploaded"
+                    style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, marginBottom: 6, display: 'block' }} />
                 )}
-                <div className="message-content">
-                  {/* Source badge */}
-                  {msg.role === 'assistant' && msg.source && (
-                    <div style={{
-                      fontSize: 10, fontWeight: 700, marginBottom: 3,
-                      color: msg.source === 'medgemma' ? '#7C3AED' : '#0369A1',
-                    }}>
-                      {msg.source === 'medgemma' ? '🔬 MedGemma' : '⚡ Nova Micro'}
-                    </div>
-                  )}
-                  {msg.imagePreview && (
-                    <img src={msg.imagePreview} alt="Uploaded"
-                      style={{ maxWidth: '100%', maxHeight: 200, borderRadius: 8, marginBottom: 6, display: 'block' }} />
-                  )}
-                  <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{renderMarkdown(msg.content)}</div>
-                  <span className="message-time">{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-
-                  {/* ── Quick-reply checkbox panel ────────────────────────── */}
-                  {isLastAssistant && (
-                    <div className="quick-reply-panel">
-                      <p className="quick-reply-label">Select all that apply:</p>
-                      <div className="quick-reply-chips">
-                        {quickReplies.map(opt => {
-                          const checked = selectedReplies.has(opt);
-                          return (
-                            <button
-                              key={opt}
-                              className={`quick-reply-chip${checked ? ' selected' : ''}`}
-                              onClick={() => {
-                                setSelectedReplies(prev => {
-                                  const next = new Set(prev);
-                                  if (next.has(opt)) next.delete(opt); else next.add(opt);
-                                  return next;
-                                });
-                              }}
-                            >
-                              <span className="chip-checkbox">{checked ? '✓' : ''}</span>
-                              {opt}
-                            </button>
-                          );
-                        })}
-                      </div>
-                      <div className="quick-reply-actions">
-                        <button
-                          className="quick-reply-submit"
-                          disabled={selectedReplies.size === 0}
-                          onClick={() => void submitQuickReplies()}
-                        >
-                          Submit {selectedReplies.size > 0 ? `(${selectedReplies.size})` : ''}
-                        </button>
-                        <button
-                          className="quick-reply-skip"
-                          onClick={() => { setQuickReplies([]); setSelectedReplies(new Set()); }}
-                        >
-                          None / Skip
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <div style={{ whiteSpace: 'pre-wrap', lineHeight: 1.5 }}>{renderMarkdown(msg.content)}</div>
+                <span className="message-time">{msg.timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
-            );
-          })
+            </div>
+          ))
         )}
         {loading && (
           <div className="message-bubble assistant">
-            <img src={immunyLogo} alt="Immuny" className="message-avatar" />
+            <img src={beaImg} alt="Bea" className="message-avatar" />
             <div className="message-content typing"><span /><span /><span /></div>
           </div>
         )}
@@ -960,10 +907,8 @@ export default function App() {
                 <button onClick={() => speakText("Hello! This is Immuny, your allergy AI ally.")} className="test-voice-btn">🔊 Test Voice</button>
               </div>
               <div className="api-info">
-                <p><strong>LLM Router:</strong></p>
-                <p className="info-note">⚡ Nova Micro — casual &amp; greetings (≤8 words)</p>
-                <p className="info-note">🔬 MedGemma — medical queries (detailed)</p>
-                <p className="info-note">📷 MedGemma Vision — image analysis</p>
+                <p><strong>AI Model:</strong></p>
+                <p className="info-note">⚡ Nova Micro — all queries (via AWS Bedrock)</p>
               </div>
             </div>
           </div>
@@ -972,52 +917,34 @@ export default function App() {
     </>
   );
 
-  const renderContent = () => {
+  const renderContent = (userId: string, userEmail?: string) => {
     switch (currentPage) {
-      case 'profile': return <ProfilePage />;
-      case 'symptom-logger': return <SymptomLoggerPage />;
+      case 'home':            return <HomePage onNavigate={navigateTo} userName={userEmail} />;
+      case 'voice':           return <VoicePage onNavigate={navigateTo} />;
+      case 'insights':        return <InsightsPage onNavigate={navigateTo} />;
+      case 'community':       return <CommunityPage currentUserId={userId} />;
+      case 'profile':         return <ProfilePage />;
+      case 'symptom-logger':  return <SymptomLoggerPage />;
       case 'exposure-testing': return <ExposureTestingPage />;
-      default: return renderChat();
+      case 'chat':            return renderChat();
+      default:                return <HomePage onNavigate={navigateTo} />;
     }
   };
 
   return (
     <Authenticator>
-      {({ signOut, user }) => {
+      {({ user }) => {
+        const userId = user?.userId ?? 'anonymous';
+        const userEmail = user?.signInDetails?.loginId;
         if (user?.userId) document.body.dataset.userId = user.userId;
         return (
           <div className="app-container">
-            <div className={`sidebar ${menuOpen ? 'open' : ''}`}>
-              <div className="sidebar-header">
-                <img src={immunyLogo} alt="Immuny" className="sidebar-logo" />
-                <h2>Immuny</h2>
-                <button onClick={() => setMenuOpen(false)}>✕</button>
-              </div>
-              <nav>
-                <button className={currentPage === 'chat' ? 'active' : ''} onClick={() => navigateTo('chat')}>💬 Ask Immuny</button>
-                <button className={currentPage === 'symptom-logger' ? 'active' : ''} onClick={() => navigateTo('symptom-logger')}>📋 Health Logger</button>
-                <button className={currentPage === 'exposure-testing' ? 'active' : ''} onClick={() => navigateTo('exposure-testing')}>🧪 Exposure Testing</button>
-                <button className={currentPage === 'profile' ? 'active' : ''} onClick={() => navigateTo('profile')}>👤 Profile</button>
-              </nav>
-              <div className="sidebar-footer">
-                <p>{user?.signInDetails?.loginId}</p>
-                <button onClick={signOut}>Sign Out</button>
-              </div>
-            </div>
-
             <div className="main-content">
-              <header className="chat-header">
-                <button onClick={() => setMenuOpen(true)} className="menu-btn">☰</button>
-                <div className="header-title">
-                  <img src={immunyLogo} alt="Immuny" className="header-logo" />
-                  <div>
-                    <h1>Immuny AI</h1>
-                    <p> {selectedVoice?.name?.replace('Google ', '').split(' ').slice(0, 3).join(' ') || 'Default'}</p>
-                  </div>
-                </div>
-              </header>
-              {renderContent()}
+              <div key={currentPage} className="page-fade">
+                {renderContent(userId, userEmail)}
+              </div>
             </div>
+            <BottomNav current={currentPage} onNavigate={navigateTo} />
           </div>
         );
       }}

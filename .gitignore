@@ -12,6 +12,12 @@ dist
 dist-ssr
 *.local
 
+# Amplify CDK build artifacts (generated, not needed in repo)
+.amplify/artifacts/
+
+# Build output and archives
+dist.zip
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
