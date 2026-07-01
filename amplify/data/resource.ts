@@ -68,7 +68,7 @@ const schema = a.schema({
     likes: a.integer(),
   }).authorization(allow => [
     allow.owner(),
-    allow.authenticated().to(['read', 'list', 'update']), // any auth user can like
+    allow.authenticated().to(['read', 'update']), // any auth user can like
   ]),
 
   // ── MedGemma (detailed medical — Colab/Ngrok) ────────────────────────────
