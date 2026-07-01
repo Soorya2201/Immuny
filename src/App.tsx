@@ -70,7 +70,6 @@ const INITIAL_SESSION_CONTEXT: SessionContext = {
 const ALLERGY_FOOD_RE = /\b(shellfish|shrimp|crab|lobster|peanut|nut|dairy|milk|gluten|wheat|soy|egg|fish|sesame|tree nut|latex|bee|wasp|penicillin|aspirin|ibuprofen|sulfa|mold|dust|pollen|cat|dog|pet)s?\b/gi;
 const SYMPTOM_ENTITY_RE = /\b(hives?|swelling|itch(?:ing)?|rash|nausea|vomit(?:ing)?|dizziness|dizzy|wheezing|wheeze|throat tightening|anaphylaxis|cramps?|bloating|stomach pain|difficulty breathing|headache|tingling|redness|bumps?)\b/gi;
 const MEDICATION_RE = /\b(benadryl|epipen|epinephrine|cetirizine|zyrtec|claritin|loratadine|prednisone|prednisolone|inhaler|montelukast|singulair|diphenhydramine|hydroxyzine|cortisone|steroid)s?\b/gi;
-const FOOD_RE = /\b(ate|eating|eat|had|having|consumed?|tried?)\s+(?:some\s+)?([\w\s]{2,25}?)(?:\s+and|\s+which|\s+that|\.|,|$)/gi;
 const EMERGENCY_RE = /\b(can'?t breathe|throat closing|anaphylaxis|epipen|epinephrine|emergency|911|can not breathe|unable to breathe|severe reaction|face swelling|lips? swelling)\b/i;
 const ELEVATED_RE = /\b(difficulty breathing|tight(?:ness)?|wheez|throat|spreading|getting worse|severe|bad reaction|not improving|still swelling)\b/i;
 
