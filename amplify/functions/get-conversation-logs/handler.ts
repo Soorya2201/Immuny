@@ -1,4 +1,4 @@
-import { DynamoDBClient, QueryCommand } from "@aws-sdk/client-dynamodb";
+import { DynamoDBClient, QueryCommand, type AttributeValue } from "@aws-sdk/client-dynamodb";
 import type { Schema } from "../../data/resource";
 
 const db = new DynamoDBClient({});
@@ -24,7 +24,7 @@ export const handler: Schema["getConversationLogs"]["functionHandler"] =
                 })
             );
 
-            const items = (result.Items ?? []).map((item) => {
+            const items = (result.Items ?? []).map((item: Record<string, AttributeValue>) => {
                 try {
                     return JSON.parse(item.event?.S ?? "{}");
                 } catch {
