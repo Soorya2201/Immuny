@@ -11,13 +11,16 @@ import ProfilePage from './components/ProfilePage';
 import SymptomLoggerPage from './components/SymptomLogger';
 import ExposureTestingPage from './components/ExposureTesting';
 import ResourceHubPage from './components/ResourceHubPage';
+import MedicationsPage from './components/MedicationsPage';
 import HomePage from './components/HomePage';
+import OnboardingPage from './components/OnboardingPage';
 import InsightsPage from './components/InsightsPage';
 import VoicePage from './components/VoicePage';
 import CommunityPage from './components/CommunityPage';
 import BottomNav from './components/BottomNav';
 import { ClipboardIcon, MedicalCrossIcon, MicIcon, SendIcon, StopIcon, ThermometerIcon, UtensilsIcon, VolumeIcon } from './components/icons';
 import type { Page } from './types';
+import { toLocalDatetimeInputValue } from './utils/formatTime';
 
 // ── 🔴 WATCH SENSOR FEATURE (COMMENTED OUT — ready for future integration) ──
 // import WatchStatus, { type Vitals } from './components/WatchStatus';
@@ -312,7 +315,12 @@ const cleanModelOutput = (raw: string): string => {
 // Instead of instructing MedGemma to emit a structured token (unreliable),
 // we detect a symptom-question pattern in whatever MedGemma naturally writes,
 // then serve relevant options from the frontend.
-export default function App() {
+interface AppShellProps {
+  userId: string;
+  userEmail?: string;
+}
+
+function AppShell({ userId, userEmail }: AppShellProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatHistory, setChatHistory] = useState<HistoryTurn[]>([]);
   const [sessionContext, setSessionContext] = useState<SessionContext>(INITIAL_SESSION_CONTEXT);
@@ -321,7 +329,18 @@ export default function App() {
   const [isSpeaking, setIsSpeaking] = useState(false);
   const [isRecording, setIsRecording] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>('home');
+  const [symptomLoggerTab, setSymptomLoggerTab] = useState<'Exposure' | 'Symptom' | 'Medication' | 'History'>('Exposure');
   const [hasGreeted, setHasGreeted] = useState(false);
+
+  // ── Onboarding gate — new/incomplete profiles see the setup wizard first ──
+  const [onboardingStatus, setOnboardingStatus] = useState<'checking' | 'needed' | 'done'>('checking');
+  const [existingProfileId, setExistingProfileId] = useState<string | null>(null);
+
+  // Other components (e.g. ProfilePage) read the signed-in user id off the DOM
+  // rather than via props, so stamp it here instead of during render.
+  useEffect(() => {
+    document.body.dataset.userId = userId;
+  }, [userId]);
 
   // ── Conversational Logging State ──
   const [loggingSession, setLoggingSession] = useState<LoggingSession | null>(null);
@@ -391,9 +410,33 @@ export default function App() {
     });
   }, [speakText]);
 
+  // ── Onboarding status check — runs once per session ───────────────────────
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await client.models.UserProfile.list();
+        const profile = data?.[0];
+        if (profile) {
+          setExistingProfileId(profile.id);
+          setOnboardingStatus(profile.onboardingComplete ? 'done' : 'needed');
+        } else {
+          setOnboardingStatus('needed');
+        }
+      } catch (e) {
+        console.warn('Failed to check onboarding status — letting the user into the app', e);
+        setOnboardingStatus('done');
+      }
+    })();
+  }, []);
+
+  const handleOnboardingComplete = (landingPage?: Page) => {
+    setOnboardingStatus('done');
+    if (landingPage) setCurrentPage(landingPage);
+  };
+
   // ── Nova Micro Greeting ────────────────────────────────────────────────────
   useEffect(() => {
-    if (hasGreeted) return;
+    if (hasGreeted || onboardingStatus !== 'done') return;
     const greet = async () => {
       try {
         setHasGreeted(true);
@@ -424,7 +467,7 @@ export default function App() {
     };
     greet();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [onboardingStatus]);
 
   // ── DynamoDB Event Logger (non-blocking) ──────────────────────────────────
   const logEvent = useCallback(async (
@@ -527,7 +570,7 @@ export default function App() {
 
   const submitLoggedEntry = async (session: LoggingSession) => {
     const { entryType, collectedData } = session;
-    const now = new Date().toISOString().slice(0, 16);
+    const now = toLocalDatetimeInputValue(new Date());
     try {
       const basePayload: Record<string, unknown> = {
         type: entryType,
@@ -665,9 +708,6 @@ export default function App() {
       }
     }
 
-    // Stamp userId from Amplify Authenticator
-    const userId = document.body.dataset.userId ?? 'anonymous';
-
     // History snapshot already includes the current user turn (fixed above)
     const historySnapshot = updatedHistory.slice(-10);
     const contextSummary = buildContextSummary(sessionContext);
@@ -759,7 +799,10 @@ export default function App() {
     }
   };
 
-  const navigateTo = (page: Page) => setCurrentPage(page);
+  const navigateTo = (page: Page, tab?: string) => {
+    if (page === 'symptom-logger') setSymptomLoggerTab((tab as typeof symptomLoggerTab) ?? 'Exposure');
+    setCurrentPage(page);
+  };
 
   // ── Chat UI ────────────────────────────────────────────────────────────────
   const renderChat = () => (
@@ -871,30 +914,53 @@ export default function App() {
       case 'insights':        return <InsightsPage onNavigate={navigateTo} />;
       case 'community':       return <CommunityPage currentUserId={userId} />;
       case 'profile':         return <ProfilePage />;
-      case 'symptom-logger':  return <SymptomLoggerPage />;
+      case 'symptom-logger':  return <SymptomLoggerPage initialTab={symptomLoggerTab} />;
       case 'exposure-testing': return <ExposureTestingPage />;
       case 'resource-hub':     return <ResourceHubPage onNavigate={navigateTo} />;
+      case 'medications':      return <MedicationsPage onNavigate={navigateTo} />;
       case 'chat':            return renderChat();
       default:                return <HomePage onNavigate={navigateTo} />;
     }
   };
 
+  // ── Onboarding gate ────────────────────────────────────────────────────────
+  if (onboardingStatus === 'checking') {
+    return (
+      <div className="app-container">
+        <div className="onboarding-loading">
+          <img src={beaImg} alt="Bea" className="onboarding-loading-bea" />
+        </div>
+      </div>
+    );
+  }
+
+  if (onboardingStatus === 'needed') {
+    return (
+      <div className="app-container">
+        <OnboardingPage existingProfileId={existingProfileId} onComplete={handleOnboardingComplete} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="app-container">
+      <div className="main-content">
+        <div key={currentPage} className="page-fade">
+          {renderContent(userId, userEmail)}
+        </div>
+      </div>
+      <BottomNav current={currentPage} onNavigate={navigateTo} />
+    </div>
+  );
+}
+
+export default function App() {
   return (
     <Authenticator>
       {({ user }) => {
         const userId = user?.userId ?? 'anonymous';
         const userEmail = user?.signInDetails?.loginId;
-        if (user?.userId) document.body.dataset.userId = user.userId;
-        return (
-          <div className="app-container">
-            <div className="main-content">
-              <div key={currentPage} className="page-fade">
-                {renderContent(userId, userEmail)}
-              </div>
-            </div>
-            <BottomNav current={currentPage} onNavigate={navigateTo} />
-          </div>
-        );
+        return <AppShell userId={userId} userEmail={userEmail} />;
       }}
     </Authenticator>
   );

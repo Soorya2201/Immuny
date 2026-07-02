@@ -3,6 +3,7 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import type { Page } from '../types';
 import beaImg from '../assets/bea.png';
+import { toLocalDatetimeInputValue } from '../utils/formatTime';
 
 const client = generateClient<Schema>();
 
@@ -13,6 +14,7 @@ type RecordingStatus =
   | 'recording'
   | 'transcribing'
   | 'analyzing'
+  | 'confirming'
   | 'saving'
   | 'done'
   | 'error';
@@ -33,10 +35,17 @@ const STATUS_LABEL: Record<RecordingStatus, string> = {
   recording: 'Listening… tap to stop',
   transcribing: 'Transcribing your voice…',
   analyzing: 'Bea is understanding your entry…',
+  confirming: 'Does this look correct?',
   saving: 'Saving to your health log…',
   done: 'Saved to your log!',
   error: 'Something went wrong',
 };
+
+const EXAMPLE_PROMPTS = [
+  '"I have hives on my arm, severity 6 out of 10"',
+  '"I just ate a peanut butter sandwich"',
+  '"I took 25mg of Benadryl for my rash"',
+];
 
 function getSupportedMimeType(): string {
   const types = [
@@ -110,6 +119,7 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
   const [status, setStatus] = useState<RecordingStatus>('idle');
   const [transcript, setTranscript] = useState('');
   const [savedItems, setSavedItems] = useState<string[]>([]);
+  const [pendingEntries, setPendingEntries] = useState<ExtractedEntry[]>([]);
   const [errorMsg, setErrorMsg] = useState('');
 
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -194,16 +204,29 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
       if (entries.length === 0) {
         setErrorMsg(
           `Heard: "${text.slice(0, 80)}${text.length > 80 ? '…' : ''}" — ` +
-          'but no health data was found. Try saying something like "I have hives, severity 6 out of 10" or "I was exposed to peanuts".',
+          'but no health data was found. Try saying something like "I have hives, severity 6 out of 10" or "I ate peanuts".',
         );
         setStatus('error');
         return;
       }
 
-      setStatus('saving');
-      const now = new Date().toISOString();
+      // Show the extracted entries for confirmation before saving — lets the
+      // user catch misheard audio instead of it silently landing in the log.
+      setPendingEntries(entries);
+      setStatus('confirming');
+    } catch (err) {
+      console.error('VoicePage error:', err);
+      setErrorMsg(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      setStatus('error');
+    }
+  };
+
+  const confirmSave = async () => {
+    setStatus('saving');
+    try {
+      const now = toLocalDatetimeInputValue(new Date());
       const labels: string[] = [];
-      for (const entry of entries) {
+      for (const entry of pendingEntries) {
         await client.models.HealthEntry.create({
           type: entry.type,
           name: entry.name.trim(),
@@ -215,12 +238,19 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
         labels.push(`${entry.type}: ${entry.name}${sev}`);
       }
       setSavedItems(labels);
+      setPendingEntries([]);
       setStatus('done');
     } catch (err) {
-      console.error('VoicePage error:', err);
-      setErrorMsg(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
+      console.error('VoicePage save error:', err);
+      setErrorMsg(err instanceof Error ? err.message : 'Could not save. Please try again.');
       setStatus('error');
     }
+  };
+
+  const discardPending = () => {
+    setPendingEntries([]);
+    setStatus('idle');
+    setTranscript('');
   };
 
   const handleMicPress = () => {
@@ -232,7 +262,7 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
   };
 
   const isProcessing =
-    status === 'transcribing' || status === 'analyzing' || status === 'saving';
+    status === 'transcribing' || status === 'analyzing' || status === 'saving' || status === 'confirming';
 
   return (
     <div className="voice-screen">
@@ -256,9 +286,43 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
 
         <p className="voice-status-label">{STATUS_LABEL[status]}</p>
 
+        {/* Examples of what to say, shown while idle to help people know what to report */}
+        {status === 'idle' && (
+          <div className="voice-examples">
+            <p className="voice-examples-title">Try saying something like:</p>
+            {EXAMPLE_PROMPTS.map((ex, i) => (
+              <p key={i} className="voice-example-item">{ex}</p>
+            ))}
+          </div>
+        )}
+
         {/* Show what was heard */}
         {transcript && status !== 'idle' && (
           <p className="voice-transcript">"{transcript}"</p>
+        )}
+
+        {/* Confirmation step — review extracted entries before saving, so a
+            misheard recording can be caught instead of silently logged. */}
+        {status === 'confirming' && (
+          <div className="voice-confirm-box">
+            {pendingEntries.map((entry, i) => (
+              <div key={i} className="voice-confirm-item">
+                <span className="voice-confirm-type">{entry.type}</span>
+                <span className="voice-confirm-name">
+                  {entry.name}
+                  {typeof entry.severity === 'number' ? ` — severity ${entry.severity}/10` : ''}
+                </span>
+              </div>
+            ))}
+            <div className="voice-confirm-actions">
+              <button className="voice-confirm-btn voice-confirm-btn--yes" onClick={() => void confirmSave()}>
+                Yes, save this
+              </button>
+              <button className="voice-confirm-btn voice-confirm-btn--no" onClick={discardPending}>
+                No, try again
+              </button>
+            </div>
+          </div>
         )}
 
         {/* Saved items list */}

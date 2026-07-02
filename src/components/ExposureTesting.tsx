@@ -3,6 +3,7 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import { AlertTriangleIcon, BarChartIcon, CheckCircleIcon, ClipboardIcon, CloseIcon, FlaskIcon, PlusIcon } from './icons';
 import StatusMessage from './StatusMessage';
+import { toLocalDateInputValue } from '../utils/formatTime';
 
 const client = generateClient<Schema>();
 
@@ -49,7 +50,7 @@ export default function ExposureTestingPage() {
   const [servingContext, setServingCtx] = useState('');
   const [protocol, setProtocol]         = useState('');
   const [baselineSymptoms, setBaseline] = useState('');
-  const [testDate, setTestDate]         = useState(now.toISOString().slice(0, 10));
+  const [testDate, setTestDate]         = useState(toLocalDateInputValue(now));
   const [testTime, setTestTime]         = useState(now.toTimeString().slice(0, 5));
   const [monitoringDuration, setMonDur] = useState('8 hours');
   const [reminders, setReminders]       = useState<string[]>(['15 min', '30 min', '1 hour', '2 hours']);

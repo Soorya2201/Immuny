@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import { formatPostTime } from '../utils/formatTime';
-import { ChatBubbleIcon, CloseIcon, ShareIcon, ThumbsUpIcon } from './icons';
+import { ChatBubbleIcon, CloseIcon, ExternalLinkIcon, ShareIcon, ThumbsUpIcon } from './icons';
 import StatusMessage from './StatusMessage';
 
 const client = generateClient<Schema>();
@@ -19,69 +19,81 @@ interface Post {
   likes: number;
   createdAt: string;
   isOwner: boolean;
+  likedByMe: boolean;
+}
+
+interface Comment {
+  id: string;
+  postId: string;
+  authorUsername: string | null;
+  anonymous: boolean;
+  content: string;
+  createdAt: string;
+  isOwner: boolean;
 }
 
 interface NewsItem {
+  id: string;
   title: string;
-  excerpt: string;
+  url: string;
   source: string;
-  timeAgo: string;
-  accent: string;
+  publishedAt: string;
 }
 
-const STATIC_NEWS: NewsItem[] = [
-  {
-    title: 'Yes, Allergies Really Are Worse This Year',
-    excerpt:
-      "Your allergies aren't in your head. Pollen season is now 3 weeks longer than it was five decades ago, researchers say.",
-    source: 'News & Observer',
-    timeAgo: '7 hours ago',
-    accent: '#b7d97e',
-  },
-  {
-    title: 'If You Feel Cranky and Tired, You Might Blame Allergies',
-    excerpt:
-      'People might not associate brain fog and fatigue with spring allergies, but the link is stronger than most realize.',
-    source: 'Northeastern Global News',
-    timeAgo: '11 hours ago',
-    accent: '#f5c842',
-  },
-  {
-    title: 'New Research Links Gut Microbiome to Food Allergy Severity',
-    excerpt:
-      'Scientists have found that the diversity of gut bacteria may significantly influence how severely the body reacts to common food allergens.',
-    source: 'JACI Research Digest',
-    timeAgo: '1 day ago',
-    accent: '#78c0d7',
-  },
-  {
-    title: 'FDA Approves First Oral Immunotherapy for Peanut Allergy in Adults',
-    excerpt:
-      'The approval marks a milestone for adult patients who previously had limited desensitization options beyond strict avoidance.',
-    source: 'FDA News',
-    timeAgo: '2 days ago',
-    accent: '#e8b4b8',
-  },
-  {
-    title: 'Cross-Contamination Labels: What They Actually Mean',
-    excerpt:
-      '"May contain" and "processed in a facility" warnings carry different risk levels — here\'s how to interpret them safely.',
-    source: 'Allergic Living',
-    timeAgo: '3 days ago',
-    accent: '#a8d8a8',
-  },
-];
+// Rotating accent colors for news cards — the scraped feed has no thumbnails,
+// so each card gets a colored edge instead (cycling, not tied to content).
+const NEWS_ACCENTS = ['#b7d97e', '#f5c842', '#78c0d7', '#e8b4b8', '#a8d8a8'];
 
 function PostCard({
   post,
   onLike,
   onDelete,
+  expanded,
+  onToggleComments,
+  comments,
+  commentsLoading,
+  commentsError,
+  commentDraft,
+  onCommentDraftChange,
+  onSubmitComment,
+  commentSaving,
+  onDeleteComment,
 }: {
   post: Post;
-  onLike: (id: string, current: number) => void;
+  onLike: (id: string, current: number, likedByMe: boolean) => void;
   onDelete: (id: string) => void;
+  expanded: boolean;
+  onToggleComments: (id: string) => void;
+  comments: Comment[];
+  commentsLoading: boolean;
+  commentsError: boolean;
+  commentDraft: string;
+  onCommentDraftChange: (text: string) => void;
+  onSubmitComment: () => void;
+  commentSaving: boolean;
+  onDeleteComment: (commentId: string) => void;
 }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [shared, setShared] = useState(false);
+
+  const handleShare = async () => {
+    const shareText = `${post.title ? post.title + '\n' : ''}${post.content}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: post.title || 'Immuny Community post', text: shareText });
+        return;
+      }
+    } catch {
+      // user cancelled the native share sheet — fall through to clipboard
+    }
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setShared(true);
+      setTimeout(() => setShared(false), 2000);
+    } catch (e) {
+      console.warn('Share failed', e);
+    }
+  };
 
   return (
     <div className="community-post-card">
@@ -119,16 +131,70 @@ function PostCard({
       <p className="community-post-content">{post.content}</p>
 
       <div className="community-post-actions">
-        <button className="community-action-btn" onClick={() => onLike(post.id, post.likes)}>
+        <button
+          className={`community-action-btn${post.likedByMe ? ' active' : ''}`}
+          onClick={() => onLike(post.id, post.likes, post.likedByMe)}
+        >
           <ThumbsUpIcon /> <span>{post.likes > 0 ? post.likes : ''}</span>
         </button>
-        <button className="community-action-btn">
-          <ChatBubbleIcon /> <span>Comment</span>
+        <button className="community-action-btn" onClick={() => onToggleComments(post.id)}>
+          <ChatBubbleIcon /> <span>Comment{comments.length > 0 ? ` (${comments.length})` : ''}</span>
         </button>
-        <button className="community-action-btn">
-          <ShareIcon /> Share
+        <button className="community-action-btn" onClick={() => void handleShare()}>
+          <ShareIcon /> {shared ? 'Copied!' : 'Share'}
         </button>
       </div>
+
+      {expanded && (
+        <div className="community-comments">
+          {commentsLoading ? (
+            <div className="community-comments-loading">Loading comments…</div>
+          ) : commentsError ? (
+            <div className="community-comments-empty" style={{ color: '#dc2626' }}>
+              Couldn't load comments. Check your connection and reopen this post.
+            </div>
+          ) : comments.length === 0 ? (
+            <div className="community-comments-empty">No comments yet. Be the first to reply.</div>
+          ) : (
+            comments.map(c => (
+              <div key={c.id} className="community-comment-row">
+                <div className="community-comment-body">
+                  <span className="community-comment-author">
+                    {c.anonymous ? 'Anonymous' : (c.authorUsername ?? 'User')}
+                  </span>
+                  <span className="community-comment-text">{c.content}</span>
+                </div>
+                {c.isOwner && (
+                  <button
+                    className="community-comment-delete"
+                    onClick={() => onDeleteComment(c.id)}
+                    title="Delete comment"
+                  >
+                    <CloseIcon />
+                  </button>
+                )}
+              </div>
+            ))
+          )}
+          <div className="community-comment-input-row">
+            <input
+              type="text"
+              value={commentDraft}
+              onChange={e => onCommentDraftChange(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && !commentSaving && commentDraft.trim() && onSubmitComment()}
+              placeholder="Write a comment…"
+              className="community-comment-input"
+            />
+            <button
+              className="community-comment-submit"
+              onClick={onSubmitComment}
+              disabled={!commentDraft.trim() || commentSaving}
+            >
+              Post
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -155,18 +221,35 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
   const [postSaving, setPostSaving] = useState(false);
   const [savedMsg, setSavedMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // ── Comments ──
+  const [expandedPostId, setExpandedPostId] = useState<string | null>(null);
+  const [commentsByPost, setCommentsByPost] = useState<Record<string, Comment[]>>({});
+  const [commentsLoading, setCommentsLoading] = useState<Record<string, boolean>>({});
+  const [commentsError, setCommentsError] = useState<Record<string, boolean>>({});
+  const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
+  const [commentSaving, setCommentSaving] = useState<Record<string, boolean>>({});
+
+  // ── News ──
+  const [news, setNews] = useState<NewsItem[]>([]);
+  const [newsLoaded, setNewsLoaded] = useState(false);
+  const [newsError, setNewsError] = useState(false);
+
+  const isOwnedByMe = (owner: string | null | undefined) =>
+    typeof owner === 'string' && (owner === currentUserId || owner.startsWith(`${currentUserId}::`));
+
   useEffect(() => {
     (async () => {
       try {
-        const { data } = await client.models.CommunityPost.list();
+        const [{ data }, { data: likeRows }] = await Promise.all([
+          client.models.CommunityPost.list(),
+          client.models.PostLike.list({ filter: { userId: { eq: currentUserId } } }),
+        ]);
+        const likedIds = new Set((likeRows ?? []).map(l => l.postId));
         if (data) {
           const mapped: Post[] = [...data]
             .sort((a, b) => new Date(b.createdAt ?? '').getTime() - new Date(a.createdAt ?? '').getTime())
             .map(p => {
               const owner = (p as Record<string, unknown>).owner as string | null | undefined;
-              const isOwner = typeof owner === 'string' && (
-                owner === currentUserId || owner.startsWith(`${currentUserId}::`)
-              );
               return {
                 id: p.id,
                 authorUsername: p.authorUsername ?? null,
@@ -175,7 +258,8 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
                 content: p.content,
                 likes: p.likes ?? 0,
                 createdAt: p.createdAt ?? new Date().toISOString(),
-                isOwner,
+                isOwner: isOwnedByMe(owner),
+                likedByMe: likedIds.has(p.id),
               };
             });
           setPosts(mapped);
@@ -187,6 +271,31 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
       }
     })();
   }, [currentUserId]);
+
+  // Lazy-load news the first time the News tab is opened.
+  useEffect(() => {
+    if (tab !== 'news' || newsLoaded) return;
+    (async () => {
+      try {
+        const { data } = await client.models.NewsArticle.list();
+        const mapped: NewsItem[] = (data ?? [])
+          .map(a => ({
+            id: a.id,
+            title: a.title,
+            url: a.url,
+            source: a.source ?? 'Allergy News',
+            publishedAt: a.publishedAt ?? a.fetchedAt ?? new Date().toISOString(),
+          }))
+          .sort((a, b) => new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime());
+        setNews(mapped);
+      } catch (e) {
+        console.warn('CommunityPage: failed to load news', e);
+        setNewsError(true);
+      } finally {
+        setNewsLoaded(true);
+      }
+    })();
+  }, [tab, newsLoaded]);
 
   const handleContinueDisclaimer = () => {
     if (!disclaimerUsername.trim()) return;
@@ -221,6 +330,7 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
           likes: 0,
           createdAt: created.createdAt ?? new Date().toISOString(),
           isOwner: true,
+          likedByMe: false,
         };
         setPosts(prev => [newPost, ...prev]);
       }
@@ -238,13 +348,30 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
     }
   };
 
-  const handleLike = async (id: string, currentLikes: number) => {
-    const newLikes = currentLikes + 1;
-    setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: newLikes } : p));
-    try {
-      await client.models.CommunityPost.update({ id, likes: newLikes });
-    } catch {
-      setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: currentLikes } : p));
+  // One like per account: gated by the PostLike (postId, userId) composite key —
+  // create() fails server-side if that row already exists, so this can't be bypassed
+  // by rapid double-clicks even though the optimistic update below is not atomic.
+  const handleLike = async (id: string, currentLikes: number, likedByMe: boolean) => {
+    if (likedByMe) {
+      const newLikes = Math.max(0, currentLikes - 1);
+      setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: newLikes, likedByMe: false } : p));
+      try {
+        await client.models.PostLike.delete({ postId: id, userId: currentUserId });
+        await client.models.CommunityPost.update({ id, likes: newLikes });
+      } catch (e) {
+        console.error('Failed to unlike post', e);
+        setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: currentLikes, likedByMe: true } : p));
+      }
+    } else {
+      const newLikes = currentLikes + 1;
+      setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: newLikes, likedByMe: true } : p));
+      try {
+        await client.models.PostLike.create({ postId: id, userId: currentUserId });
+        await client.models.CommunityPost.update({ id, likes: newLikes });
+      } catch (e) {
+        console.error('Failed to like post (already liked?)', e);
+        setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: currentLikes, likedByMe: true } : p));
+      }
     }
   };
 
@@ -254,6 +381,81 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
       await client.models.CommunityPost.delete({ id });
     } catch (e) {
       console.error('Failed to delete post', e);
+    }
+  };
+
+  const toggleComments = async (postId: string) => {
+    const opening = expandedPostId !== postId;
+    setExpandedPostId(opening ? postId : null);
+    if (opening && !commentsByPost[postId]) {
+      setCommentsLoading(prev => ({ ...prev, [postId]: true }));
+      setCommentsError(prev => ({ ...prev, [postId]: false }));
+      try {
+        const { data } = await client.models.PostComment.list({ filter: { postId: { eq: postId } } });
+        const mapped: Comment[] = (data ?? [])
+          .sort((a, b) => new Date(a.createdAt ?? '').getTime() - new Date(b.createdAt ?? '').getTime())
+          .map(c => {
+            const owner = (c as Record<string, unknown>).owner as string | null | undefined;
+            return {
+              id: c.id,
+              postId: c.postId,
+              authorUsername: c.authorUsername ?? null,
+              anonymous: c.anonymous ?? false,
+              content: c.content,
+              createdAt: c.createdAt ?? new Date().toISOString(),
+              isOwner: isOwnedByMe(owner),
+            };
+          });
+        setCommentsByPost(prev => ({ ...prev, [postId]: mapped }));
+      } catch (e) {
+        console.warn('Failed to load comments', e);
+        setCommentsError(prev => ({ ...prev, [postId]: true }));
+      } finally {
+        setCommentsLoading(prev => ({ ...prev, [postId]: false }));
+      }
+    }
+  };
+
+  const submitComment = async (postId: string) => {
+    const text = (commentDrafts[postId] ?? '').trim();
+    if (!text) return;
+    setCommentSaving(prev => ({ ...prev, [postId]: true }));
+    try {
+      const { data: created } = await client.models.PostComment.create({
+        postId,
+        authorUsername: communityUsername,
+        anonymous: !communityUsername,
+        content: text,
+      });
+      if (created) {
+        const newComment: Comment = {
+          id: created.id,
+          postId,
+          authorUsername: created.authorUsername ?? null,
+          anonymous: created.anonymous ?? false,
+          content: created.content,
+          createdAt: created.createdAt ?? new Date().toISOString(),
+          isOwner: true,
+        };
+        setCommentsByPost(prev => ({ ...prev, [postId]: [...(prev[postId] ?? []), newComment] }));
+      }
+      setCommentDrafts(prev => ({ ...prev, [postId]: '' }));
+    } catch (e) {
+      console.error('Failed to add comment', e);
+    } finally {
+      setCommentSaving(prev => ({ ...prev, [postId]: false }));
+    }
+  };
+
+  const deleteComment = async (postId: string, commentId: string) => {
+    setCommentsByPost(prev => ({
+      ...prev,
+      [postId]: (prev[postId] ?? []).filter(c => c.id !== commentId),
+    }));
+    try {
+      await client.models.PostComment.delete({ id: commentId });
+    } catch (e) {
+      console.error('Failed to delete comment', e);
     }
   };
 
@@ -422,6 +624,16 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
                 post={post}
                 onLike={handleLike}
                 onDelete={handleDelete}
+                expanded={expandedPostId === post.id}
+                onToggleComments={toggleComments}
+                comments={commentsByPost[post.id] ?? []}
+                commentsLoading={!!commentsLoading[post.id]}
+                commentsError={!!commentsError[post.id]}
+                commentDraft={commentDrafts[post.id] ?? ''}
+                onCommentDraftChange={text => setCommentDrafts(prev => ({ ...prev, [post.id]: text }))}
+                onSubmitComment={() => void submitComment(post.id)}
+                commentSaving={!!commentSaving[post.id]}
+                onDeleteComment={commentId => void deleteComment(post.id, commentId)}
               />
             ))
           )}
@@ -430,16 +642,36 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
 
       {tab === 'news' && (
         <div className="community-news-feed">
-          {STATIC_NEWS.map((item, i) => (
-            <div key={i} className="news-card">
-              <div className="news-card-accent" style={{ background: item.accent }} />
-              <div className="news-card-body">
-                <h3 className="news-title">{item.title}</h3>
-                <p className="news-excerpt">{item.excerpt}</p>
-                <span className="news-meta">{item.timeAgo} | {item.source}</span>
-              </div>
+          {!newsLoaded ? (
+            <div className="community-loading">Loading allergy news…</div>
+          ) : newsError ? (
+            <div className="community-empty">
+              <p>Couldn't load news right now. Try again later.</p>
             </div>
-          ))}
+          ) : news.length === 0 ? (
+            <div className="community-empty">
+              <p>No allergy news yet — check back soon.</p>
+            </div>
+          ) : (
+            news.map((item, i) => (
+              <a
+                key={item.id}
+                href={item.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="news-card"
+              >
+                <div className="news-card-accent" style={{ background: NEWS_ACCENTS[i % NEWS_ACCENTS.length] }} />
+                <div className="news-card-body">
+                  <h3 className="news-title">{item.title}</h3>
+                  <span className="news-meta">
+                    {formatPostTime(item.publishedAt)} | {item.source}
+                  </span>
+                </div>
+                <span className="news-card-link-icon"><ExternalLinkIcon /></span>
+              </a>
+            ))
+          )}
         </div>
       )}
     </div>

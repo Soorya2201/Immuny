@@ -24,6 +24,7 @@ import {
   ZapIcon,
 } from './icons';
 import StatusMessage from './StatusMessage';
+import { COMMON_ALLERGENS } from '../utils/allergens';
 
 const client = generateClient<Schema>();
 
@@ -145,7 +146,8 @@ export default function ProfilePage() {
   const [fmName, setFmName] = useState('');
   const [fmRelationship, setFmRelationship] = useState('Child');
   const [fmAge, setFmAge] = useState('');
-  const [fmAllergies, setFmAllergies] = useState('');
+  const [fmAllergyChips, setFmAllergyChips] = useState<string[]>([]);
+  const [fmAllergyOther, setFmAllergyOther] = useState('');
   const [fmConditions, setFmConditions] = useState('');
   const [fmMedications, setFmMedications] = useState('');
   const [fmNotes, setFmNotes] = useState('');
@@ -246,14 +248,19 @@ export default function ProfilePage() {
     setNotifPrefs(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
+  const toggleFmAllergyChip = (chip: string) => {
+    setFmAllergyChips(prev => prev.includes(chip) ? prev.filter(c => c !== chip) : [...prev, chip]);
+  };
+
   const addFamilyMember = async () => {
     if (!fmName.trim() || !fmRelationship) return alert('Please enter name and relationship.');
+    const knownAllergies = [...fmAllergyChips, ...fmAllergyOther.split(',').map(s => s.trim()).filter(Boolean)].join(', ');
     try {
       const { data: created } = await client.models.FamilyMember.create({
         name: fmName.trim(),
         relationship: fmRelationship,
         age: fmAge ? parseInt(fmAge) : undefined,
-        knownAllergies: fmAllergies || undefined,
+        knownAllergies: knownAllergies || undefined,
         medicalConditions: fmConditions || undefined,
         medications: fmMedications || undefined,
         notes: fmNotes || undefined,
@@ -262,13 +269,13 @@ export default function ProfilePage() {
         setFamilyMembers(prev => [...prev, {
           id: created.id, name: fmName.trim(), relationship: fmRelationship,
           age: fmAge ? parseInt(fmAge) : undefined,
-          knownAllergies: fmAllergies || undefined,
+          knownAllergies: knownAllergies || undefined,
           medicalConditions: fmConditions || undefined,
           medications: fmMedications || undefined,
           notes: fmNotes || undefined,
         }]);
       }
-      setFmName(''); setFmAge(''); setFmAllergies(''); setFmConditions('');
+      setFmName(''); setFmAge(''); setFmAllergyChips([]); setFmAllergyOther(''); setFmConditions('');
       setFmMedications(''); setFmNotes(''); setShowAddFamily(false);
       setProfileMsg({ type: 'success', text: 'Family member added!' });
       setTimeout(() => setProfileMsg(null), 2000);
@@ -535,9 +542,29 @@ export default function ProfilePage() {
                 <label style={{ fontSize: 13 }}>Age</label>
                 <input type="number" value={fmAge} onChange={e => setFmAge(e.target.value)} placeholder="Optional" />
               </div>
-              <div className="form-group" style={{ marginBottom: 8 }}>
+              <div className="form-group" style={{ marginBottom: 8, gridColumn: '1 / -1' }}>
                 <label style={{ fontSize: 13 }}>Known Allergies</label>
-                <input type="text" value={fmAllergies} onChange={e => setFmAllergies(e.target.value)} placeholder="e.g., Peanuts, Shellfish" />
+                <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px' }}>
+                  Pick from the same list used for symptom &amp; exposure logging so they show up together in Insights.
+                </p>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                  {COMMON_ALLERGENS.map(a => (
+                    <button
+                      key={a}
+                      type="button"
+                      onClick={() => toggleFmAllergyChip(a)}
+                      style={{
+                        padding: '4px 12px', borderRadius: 16, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                        border: fmAllergyChips.includes(a) ? '1px solid #4A7BA7' : '1px solid #E9EDEF',
+                        background: fmAllergyChips.includes(a) ? '#4A7BA7' : '#F8FBFF',
+                        color: fmAllergyChips.includes(a) ? '#fff' : '#4A7BA7',
+                      }}
+                    >
+                      {a}
+                    </button>
+                  ))}
+                </div>
+                <input type="text" value={fmAllergyOther} onChange={e => setFmAllergyOther(e.target.value)} placeholder="Other allergies (comma-separated)" />
               </div>
               <div className="form-group" style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 13 }}>Medical Conditions</label>

@@ -7,4 +7,5 @@ export type Page =
   | 'profile'
   | 'symptom-logger'
   | 'exposure-testing'
-  | 'resource-hub';
+  | 'resource-hub'
+  | 'medications';

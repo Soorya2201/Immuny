@@ -1,3 +1,17 @@
+// Formats a Date as a local (not UTC) "YYYY-MM-DDTHH:mm" string, matching what
+// <input type="datetime-local"> expects. Date#toISOString() converts to UTC first,
+// which silently shifts the displayed date/time whenever the browser's timezone
+// offset is nonzero (e.g. showing a "future" date/time for UTC-negative zones).
+export function toLocalDatetimeInputValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+export function toLocalDateInputValue(date: Date): string {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
 export function formatRelativeTime(iso: string): string {
   if (!iso) return '';
   const diff = Date.now() - new Date(iso).getTime();

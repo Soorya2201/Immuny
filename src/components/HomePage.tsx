@@ -4,10 +4,13 @@ import type { Schema } from '../../amplify/data/resource';
 import type { Page } from '../types';
 import beaImg from '../assets/bea.png';
 import { formatRelativeTime } from '../utils/formatTime';
+import { getNextUpcoming } from '../utils/medications';
+import type { TodayDoseEntry } from '../utils/medications';
 import {
   ArrowRightIcon,
   ChatBubbleIcon,
   ClipboardIcon,
+  ClockIcon,
   FlaskIcon,
   NoteIcon,
   PillIcon,
@@ -38,13 +41,26 @@ const SEVERITY_COLOR = (v: number) =>
   v <= 3 ? '#22c55e' : v <= 6 ? '#f5c842' : '#ef4444';
 
 interface HomePageProps {
-  onNavigate: (page: Page) => void;
+  onNavigate: (page: Page, tab?: string) => void;
   userName?: string;
 }
 
 export default function HomePage({ onNavigate, userName }: HomePageProps) {
   const [recentEntries, setRecentEntries] = useState<RecentEntry[]>([]);
   const [loadingRecent, setLoadingRecent] = useState(true);
+  const [nextMed, setNextMed] = useState<TodayDoseEntry | null>(null);
+  const [profileName, setProfileName] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data } = await client.models.UserProfile.list();
+        if (data && data.length > 0 && data[0].name) setProfileName(data[0].name);
+      } catch (e) {
+        console.warn('HomePage: failed to load profile name', e);
+      }
+    })();
+  }, []);
 
   useEffect(() => {
     (async () => {
@@ -71,7 +87,39 @@ export default function HomePage({ onNavigate, userName }: HomePageProps) {
     })();
   }, []);
 
-  const greeting = userName ? `Hello, ${userName.split(' ')[0]}!` : "Hello, I'm Bea,";
+  useEffect(() => {
+    (async () => {
+      try {
+        const [{ data: meds }, { data: logs }] = await Promise.all([
+          client.models.Medication.list(),
+          client.models.MedicationLog.list(),
+        ]);
+        if (meds) {
+          const mapped = meds.map(m => ({
+            id: m.id,
+            name: m.name,
+            dose: m.dose ?? null,
+            unit: m.unit ?? null,
+            route: m.route ?? null,
+            timeLabel: m.timeLabel ?? null,
+            scheduledTime: m.scheduledTime ?? null,
+            frequency: m.frequency ?? null,
+            active: m.active ?? true,
+            createdAt: m.createdAt ?? new Date().toISOString(),
+          }));
+          const mappedLogs = (logs ?? []).map(l => ({ id: l.id, medicationId: l.medicationId, takenAt: l.takenAt }));
+          setNextMed(getNextUpcoming(mapped, mappedLogs, new Date()));
+        }
+      } catch (e) {
+        console.warn('HomePage: failed to load medications', e);
+      }
+    })();
+  }, []);
+
+  // Prefer the saved profile name; fall back to the local part of the login
+  // email (never show the raw email — it reads oddly as a "name").
+  const displayName = profileName?.trim() || userName?.split('@')[0];
+  const greeting = displayName ? `Hello, ${displayName.split(' ')[0]}!` : "Hello, I'm Bea,";
 
   return (
     <div className="home-screen">
@@ -85,6 +133,21 @@ export default function HomePage({ onNavigate, userName }: HomePageProps) {
         <p className="home-greeting">{greeting}</p>
         <h2 className="home-question">How can I help?</h2>
       </div>
+
+      {/* ── Next medication reminder ── */}
+      {nextMed && (
+        <button className="home-med-card" onClick={() => onNavigate('medications')}>
+          <span className="home-med-icon"><ClockIcon /></span>
+          <div className="home-med-info">
+            <span className="home-med-label">Coming up {nextMed.medication.timeLabel ?? ''}</span>
+            <span className="home-med-name">{nextMed.medication.name}</span>
+            <span className="home-med-subtitle">
+              {[nextMed.medication.dose, nextMed.medication.unit].filter(Boolean).join('')} {nextMed.medication.frequency ?? ''}
+            </span>
+          </div>
+          <span className="home-med-arrow"><ArrowRightIcon /></span>
+        </button>
+      )}
 
       {/* ── Action tiles ── */}
       <div className="home-tiles">
@@ -117,7 +180,7 @@ export default function HomePage({ onNavigate, userName }: HomePageProps) {
       <div className="home-recent">
         <div className="home-recent-header">
           <span>Recent activity</span>
-          <button onClick={() => onNavigate('symptom-logger')}>See all</button>
+          <button onClick={() => onNavigate('symptom-logger', 'History')}>See all</button>
         </div>
 
         {loadingRecent ? (

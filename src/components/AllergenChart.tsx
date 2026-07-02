@@ -17,7 +17,7 @@ export default function AllergenChart({ data }: AllergenChartProps) {
     <div className={`allergen-chart${isEmpty ? ' allergen-chart--placeholder' : ''}`}>
       <div className="allergen-chart-header">
         <BarChartIcon />
-        <span>Allergen frequency</span>
+        <span>Reporting frequency</span>
       </div>
 
       <div className="allergen-chart-bars">

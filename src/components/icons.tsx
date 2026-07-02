@@ -356,6 +356,33 @@ export const MapPinIcon = () => (
   </svg>
 );
 
+export const ExclamationCircleIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+    <circle cx="12" cy="12" r="10"/>
+    <rect x="11" y="6" width="2" height="8" rx="1" fill="#fff"/>
+    <rect x="11" y="16" width="2" height="2" rx="1" fill="#fff"/>
+  </svg>
+);
+
+export const ClockIcon = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10"/>
+    <polyline points="12 6 12 12 16 14"/>
+  </svg>
+);
+
+export const CheckIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+    <polyline points="20 6 9 17 4 12"/>
+  </svg>
+);
+
+export const EditIcon = () => (
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/>
+  </svg>
+);
+
 export const GlobeIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <circle cx="12" cy="12" r="10"/>
