@@ -3,6 +3,7 @@ import { askMedGemma } from '../functions/ask-medgemma/resource';
 import { askNovaMicro } from '../functions/ask-nova-micro/resource';
 import { logConversationEvent } from '../functions/log-conversation-event/resource';
 import { getConversationLogs } from '../functions/get-conversation-logs/resource';
+import { fetchAllergyNews } from '../functions/fetch-allergy-news/resource';
 
 const schema = a.schema({
   // ── User profile ────────────────────────────────────────────────────────────
@@ -11,6 +12,10 @@ const schema = a.schema({
     age: a.integer(),
     medicalHistory: a.string(),
     notificationPrefs: a.string(),   // JSON string for notification toggles
+    caregiverRelationship: a.string(),  // e.g. 'Mother', 'Father', 'Guardian'
+    contactEmail: a.string(),
+    contactPhone: a.string(),
+    onboardingComplete: a.boolean(),
   }).authorization(allow => [allow.owner()]),
 
   // ── Health entries (Symptom Logger) ────────────────────────────────────────
@@ -28,6 +33,24 @@ const schema = a.schema({
     route: a.string(),
     reason: a.string(),
     time: a.string().required(),
+  }).authorization(allow => [allow.owner()]),
+
+  // ── Medications (schedule) ────────────────────────────────────────────────
+  Medication: a.model({
+    name: a.string().required(),
+    dose: a.string(),
+    unit: a.string(),
+    route: a.string(),
+    timeLabel: a.string(),       // 'Morning' | 'Afternoon' | 'Evening' | 'Night' | 'As needed'
+    scheduledTime: a.string(),   // 'HH:MM' 24-hour; null for 'as needed'
+    frequency: a.string(),       // free text, e.g. 'once', 'twice daily'
+    active: a.boolean(),
+  }).authorization(allow => [allow.owner()]),
+
+  // ── Medication doses actually taken ──────────────────────────────────────
+  MedicationLog: a.model({
+    medicationId: a.string().required(),
+    takenAt: a.string().required(),   // full ISO datetime
   }).authorization(allow => [allow.owner()]),
 
   // ── Exposure tests ────────────────────────────────────────────────────────
@@ -71,6 +94,38 @@ const schema = a.schema({
     allow.authenticated().to(['read', 'update']), // any auth user can like
   ]),
 
+  // ── Community post comments ──────────────────────────────────────────────
+  PostComment: a.model({
+    postId: a.string().required(),
+    authorUsername: a.string(),       // null when anonymous
+    anonymous: a.boolean(),
+    content: a.string().required(),
+  }).authorization(allow => [
+    allow.owner(),
+    allow.authenticated().to(['read', 'create']), // any auth user can read/add comments
+  ]),
+
+  // ── Post likes — one row per (post, user) enforces one like per account ──
+  PostLike: a.model({
+    postId: a.string().required(),
+    userId: a.string().required(),
+  }).identifier(['postId', 'userId'])
+    .authorization(allow => [
+      allow.owner(),
+      allow.authenticated().to(['read', 'create']), // any auth user can like; only the liker can unlike (owner-only delete)
+    ]),
+
+  // ── Allergy news (scraped on a schedule by fetchAllergyNews) ─────────────
+  NewsArticle: a.model({
+    title: a.string().required(),
+    url: a.string().required(),
+    source: a.string(),
+    publishedAt: a.string(),
+    fetchedAt: a.string(),
+  }).authorization(allow => [
+    allow.authenticated().to(['read']),
+  ]),
+
   // ── MedGemma (detailed medical — Colab/Ngrok) ────────────────────────────
   askMedGemma: a.query()
     .arguments({ question: a.string() })
@@ -100,7 +155,10 @@ const schema = a.schema({
     .returns(a.string())
     .authorization((allow) => [allow.authenticated()])
     .handler(a.handler.function(getConversationLogs)),
-});
+}).authorization(allow => [
+  // Grants fetchAllergyNews IAM access to the Data API (used to write/prune NewsArticle rows).
+  allow.resource(fetchAllergyNews),
+]);
 
 export type Schema = ClientSchema<typeof schema>;
 
