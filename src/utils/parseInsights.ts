@@ -17,6 +17,39 @@ export interface ExposureTestSummaryRow {
   reactions?: string | null;
 }
 
+export interface AllergenBar {
+  label: string;
+  count: number;
+}
+
+// Aggregates allergen/food/symptom names into frequency counts for the Insights chart.
+// Symptom + Exposure entry names and ExposureTest allergens are pooled together since
+// they all describe things the user reacted to or tested.
+export function buildAllergenChartData(
+  entries: HealthEntrySummaryRow[],
+  tests: ExposureTestSummaryRow[],
+): AllergenBar[] {
+  const freq: Record<string, number> = {};
+
+  for (const e of entries) {
+    if (e.type !== 'Symptom' && e.type !== 'Exposure') continue;
+    const key = e.name.trim();
+    if (!key) continue;
+    freq[key] = (freq[key] ?? 0) + 1;
+  }
+
+  for (const t of tests) {
+    const key = t.allergen.trim();
+    if (!key) continue;
+    freq[key] = (freq[key] ?? 0) + 1;
+  }
+
+  return Object.entries(freq)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([label, count]) => ({ label, count }));
+}
+
 export function buildDataSummary(
   entries: HealthEntrySummaryRow[],
   tests: ExposureTestSummaryRow[],

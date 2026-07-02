@@ -1,10 +1,12 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, type ComponentType } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import type { Page } from '../types';
 import beaImg from '../assets/bea.png';
-import { buildDataSummary, parseInsights } from '../utils/parseInsights';
-import type { InsightCard } from '../utils/parseInsights';
+import { buildAllergenChartData, buildDataSummary, parseInsights } from '../utils/parseInsights';
+import type { AllergenBar, InsightCard } from '../utils/parseInsights';
+import AllergenChart from './AllergenChart';
+import { AlertTriangleIcon, ArrowRightIcon, BarChartIcon, ClipboardIcon, LightbulbIcon } from './icons';
 
 const client = generateClient<Schema>();
 
@@ -12,7 +14,15 @@ interface InsightsState {
   cards: InsightCard[];
   raw: string;
   hasData: boolean;
+  chartData: AllergenBar[];
 }
+
+const INSIGHT_ICONS: Record<string, ComponentType> = {
+  '⚠': AlertTriangleIcon,
+  '📊': BarChartIcon,
+  '💡': LightbulbIcon,
+  '📋': ClipboardIcon,
+};
 
 const NO_DATA_CARDS: InsightCard[] = [
   {
@@ -32,7 +42,12 @@ interface InsightsPageProps {
 }
 
 export default function InsightsPage({ onNavigate }: InsightsPageProps) {
-  const [state, setState] = useState<InsightsState>({ cards: [], raw: '', hasData: false });
+  const [state, setState] = useState<InsightsState>({
+    cards: [],
+    raw: '',
+    hasData: false,
+    chartData: [],
+  });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -60,9 +75,10 @@ export default function InsightsPage({ onNavigate }: InsightsPageProps) {
         }));
 
         const summary = buildDataSummary(safeEntries, safeTests);
+        const aggregatedChart = buildAllergenChartData(safeEntries, safeTests);
 
         if (summary === 'NO_DATA') {
-          setState({ cards: NO_DATA_CARDS, raw: '', hasData: false });
+          setState({ cards: NO_DATA_CARDS, raw: '', hasData: false, chartData: [] });
           return;
         }
 
@@ -79,7 +95,12 @@ export default function InsightsPage({ onNavigate }: InsightsPageProps) {
 
         const raw = String(result.data ?? '').trim();
         const cards = parseInsights(raw);
-        setState({ cards, raw, hasData: true });
+        setState({
+          cards,
+          raw,
+          hasData: true,
+          chartData: aggregatedChart,
+        });
       } catch (err) {
         if (!cancelled) {
           console.error('InsightsPage error:', err);
@@ -123,14 +144,17 @@ export default function InsightsPage({ onNavigate }: InsightsPageProps) {
           </div>
         ) : (
           <div className="insights-card">
-            {state.cards.map((card, i) => (
-              <div key={i} className="insight-row">
-                <span className="insight-emoji">{card.emoji}</span>
-                <p>
-                  <strong>{card.label}:</strong> {card.text}
-                </p>
-              </div>
-            ))}
+            {state.cards.map((card, i) => {
+              const Icon = INSIGHT_ICONS[card.emoji] ?? LightbulbIcon;
+              return (
+                <div key={i} className="insight-row">
+                  <span className="insight-emoji"><Icon /></span>
+                  <p>
+                    <strong>{card.label}:</strong> {card.text}
+                  </p>
+                </div>
+              );
+            })}
             {state.hasData && (
               <p className="insights-summary-link">
                 For more information view{' '}
@@ -145,16 +169,20 @@ export default function InsightsPage({ onNavigate }: InsightsPageProps) {
           </div>
         )}
 
+        {!loading && !error && (
+          <AllergenChart data={state.chartData} />
+        )}
+
         <div className="insights-actions">
           <button
             className="insights-action-secondary"
             onClick={() => onNavigate('chat')}
           >
-            Chat with AI <span>→</span>
+            Chat with AI <ArrowRightIcon />
           </button>
           <button
             className="insights-action-primary"
-            onClick={() => onNavigate('chat')}
+            onClick={() => onNavigate('resource-hub')}
           >
             Chat with an Allergist
           </button>

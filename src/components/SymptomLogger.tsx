@@ -1,6 +1,22 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, type ComponentType } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
+import {
+  CheckCircleIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  ClipboardIcon,
+  CloseIcon,
+  LightbulbIcon,
+  MapPinIcon,
+  MicIcon,
+  PillIcon,
+  SearchIcon,
+  StopIcon,
+  ThermometerIcon,
+  UtensilsIcon,
+} from './icons';
+import StatusMessage from './StatusMessage';
 
 const client = generateClient<Schema>();
 
@@ -19,7 +35,7 @@ interface HealthEntry {
 
 const SYMPTOM_LIST = ['Hives', 'Swelling', 'Itching', 'Nausea', 'Vomiting', 'Stomach Pain', 'Difficulty Breathing', 'Dizziness', 'Headache', 'Rash', 'Other'];
 const MED_ROUTES = ['Oral', 'Topical', 'Injectable', 'Inhaled'];
-const ICONS: Record<string, string> = { Exposure: '🍽️', Symptom: '🤒', Medication: '💊' };
+const ICONS: Record<string, ComponentType> = { Exposure: UtensilsIcon, Symptom: ThermometerIcon, Medication: PillIcon };
 
 function SeverityBar({ value }: { value: number }) {
   const color = value <= 3 ? '#6abf8e' : value <= 6 ? '#f5c842' : '#DC2626';
@@ -35,13 +51,14 @@ function SeverityBar({ value }: { value: number }) {
 
 function EntryCard({ entry, onDelete }: { entry: HealthEntry; onDelete: () => void }) {
   const [expanded, setExpanded] = useState(false);
+  const TypeIcon = ICONS[entry.type];
   return (
     <div style={{ border: '1px solid #E9EDEF', borderRadius: 8, padding: 12, marginBottom: 8, background: '#fff' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
-            <span style={{ fontSize: 11, fontWeight: 700, background: '#D1E7F4', color: '#4A7BA7', padding: '2px 8px', borderRadius: 12 }}>
-              {ICONS[entry.type]} {entry.type}
+            <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, fontWeight: 700, background: '#D1E7F4', color: '#4A7BA7', padding: '2px 8px', borderRadius: 12 }}>
+              <TypeIcon /> {entry.type}
             </span>
             {entry.subtype && <span style={{ fontSize: 11, color: '#999' }}>{entry.subtype}</span>}
           </div>
@@ -52,10 +69,10 @@ function EntryCard({ entry, onDelete }: { entry: HealthEntry; onDelete: () => vo
           <div style={{ fontSize: 12, color: '#667781' }}>{formatTime(entry.time)}</div>
         </div>
         <div style={{ display: 'flex', gap: 4 }}>
-          <button onClick={() => setExpanded(!expanded)} style={{ background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', fontSize: 11 }}>
-            {expanded ? '▲' : '▼'}
+          <button onClick={() => setExpanded(!expanded)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer' }}>
+            {expanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
           </button>
-          <button onClick={onDelete} style={{ background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', color: '#DC2626', fontSize: 11 }}>✕</button>
+          <button onClick={onDelete} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', color: '#DC2626' }}><CloseIcon /></button>
         </div>
       </div>
       {entry.severity && <SeverityBar value={entry.severity} />}
@@ -68,7 +85,7 @@ function EntryCard({ entry, onDelete }: { entry: HealthEntry; onDelete: () => vo
       )}
       {expanded && (entry.notes || entry.details || entry.reason || entry.bodyArea) && (
         <div style={{ marginTop: 8, padding: 10, background: '#F0F2F5', borderRadius: 6, fontSize: 13, color: '#3B4A54', borderTop: '1px solid #E9EDEF' }}>
-          {entry.bodyArea && <div>📍 {entry.bodyArea}</div>}
+          {entry.bodyArea && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPinIcon /> {entry.bodyArea}</div>}
           {entry.notes || entry.details || entry.reason}
         </div>
       )}
@@ -110,7 +127,7 @@ export default function SymptomLoggerPage() {
   const [medNotes, setMedNotes] = useState('');
   const [medTime, setMedTime] = useState(now.toISOString().slice(0, 16));
 
-  const [savedMsg, setSavedMsg] = useState('');
+  const [savedMsg, setSavedMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // ── Load entries from DynamoDB ──
   useEffect(() => {
@@ -172,12 +189,12 @@ export default function SymptomLoggerPage() {
         };
         setEntries(prev => [...prev, newEntry]);
       }
-      setSavedMsg('✅ Saved!');
-      setTimeout(() => setSavedMsg(''), 2000);
+      setSavedMsg({ type: 'success', text: 'Saved!' });
+      setTimeout(() => setSavedMsg(null), 2000);
     } catch (e) {
       console.error('Failed to create HealthEntry:', e);
-      setSavedMsg('❌ Save failed');
-      setTimeout(() => setSavedMsg(''), 3000);
+      setSavedMsg({ type: 'error', text: 'Save failed' });
+      setTimeout(() => setSavedMsg(null), 3000);
     }
   };
 
@@ -207,14 +224,19 @@ export default function SymptomLoggerPage() {
 
   return (
     <div className="page-container">
-      <h2>📋 Health Logger</h2>
+      <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ClipboardIcon /> Health Logger</h2>
       <div style={{ background: '#F0F2F5', borderRadius: 8, padding: 12, marginBottom: 20, border: '1px solid #E9EDEF' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: voiceText ? 10 : 0 }}>
-          <button onClick={listening ? stopVoice : startVoice} className="save-btn" style={{ padding: '8px 16px', fontSize: 13, background: listening ? '#DC2626' : '#4A7BA7' }}>
-            {listening ? '⏹ Stop' : '🎙️ Voice Log'}
+          <button onClick={listening ? stopVoice : startVoice} className="save-btn" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13, background: listening ? '#DC2626' : '#4A7BA7' }}>
+            {listening ? <><StopIcon /> Stop</> : <><MicIcon /> Voice Log</>}
           </button>
           {!voiceSupported && <span style={{ fontSize: 12, color: '#DC2626' }}>Voice not supported</span>}
-          {listening && <span style={{ fontSize: 12, color: '#4A7BA7', fontWeight: 600 }}>● Listening...</span>}
+          {listening && (
+            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4A7BA7', fontWeight: 600 }}>
+              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4A7BA7', display: 'inline-block' }} />
+              Listening...
+            </span>
+          )}
         </div>
         {voiceText && (
           <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -222,23 +244,29 @@ export default function SymptomLoggerPage() {
             <button className="save-btn" style={{ padding: '8px 12px', fontSize: 12 }} onClick={() => setVoiceText('')}>Clear</button>
           </div>
         )}
-        <div style={{ fontSize: 11, color: '#aaa', marginTop: 6 }}>💡 Speak your entry, then fill the form below</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#aaa', marginTop: 6 }}><LightbulbIcon /> Speak your entry, then fill the form below</div>
       </div>
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E9EDEF', paddingBottom: 0 }}>
         {(['Exposure', 'Symptom', 'Medication', 'History'] as const).map(t => (
           <button key={t} onClick={() => setActiveTab(t)} style={{
+            display: 'flex', alignItems: 'center', gap: 6,
             padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer',
             fontWeight: 600, fontSize: 13, color: activeTab === t ? '#4A7BA7' : '#667781',
             borderBottom: activeTab === t ? '2px solid #4A7BA7' : '2px solid transparent', marginBottom: -2
           }}>
-            {t === 'Exposure' ? '🍽️' : t === 'Symptom' ? '🤒' : t === 'Medication' ? '💊' : '📋'} {t}
+            {t === 'Exposure' ? <UtensilsIcon /> : t === 'Symptom' ? <ThermometerIcon /> : t === 'Medication' ? <PillIcon /> : <ClipboardIcon />}
+            {t}
             {t === 'History' && ` (${entries.length})`}
           </button>
         ))}
       </div>
 
-      {savedMsg && <div style={{ background: '#D1E7F4', border: '1px solid #4A7BA7', borderRadius: 6, padding: '10px 16px', marginBottom: 16, color: '#4A7BA7', fontWeight: 600 }}>{savedMsg}</div>}
+      {savedMsg && (
+        <div style={{ background: '#D1E7F4', border: '1px solid #4A7BA7', borderRadius: 6, padding: '10px 16px', marginBottom: 16, fontWeight: 600 }}>
+          <StatusMessage type={savedMsg.type} text={savedMsg.text} />
+        </div>
+      )}
 
       {activeTab === 'Exposure' && (
         <div>
@@ -253,7 +281,7 @@ export default function SymptomLoggerPage() {
             if (!expName.trim()) return alert('Please enter a name.');
             addEntry({ type: 'Exposure', subtype: expType, name: expName, tags: expTags.split(',').map(t => t.trim()).filter(Boolean), details: expDetails, time: expTime });
             setExpName(''); setExpTags(''); setExpDetails('');
-          }}>✅ Log Exposure</button>
+          }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><CheckCircleIcon /> Log Exposure</button>
         </div>
       )}
 
@@ -278,7 +306,7 @@ export default function SymptomLoggerPage() {
             if (!name) return alert('Please select a symptom.');
             addEntry({ type: 'Symptom', name, severity: symSeverity, bodyArea: symBody, notes: symNotes, time: symTime });
             setSymName(''); setSymCustom(''); setSymSeverity(5); setSymBody(''); setSymNotes('');
-          }}>✅ Log Symptom</button>
+          }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><CheckCircleIcon /> Log Symptom</button>
         </div>
       )}
 
@@ -297,22 +325,33 @@ export default function SymptomLoggerPage() {
             if (!medName.trim()) return alert('Please enter medication name.');
             addEntry({ type: 'Medication', name: medName, dose: medDose, unit: medUnit, route: medRoute, reason: medReason, notes: medNotes, time: medTime });
             setMedName(''); setMedDose(''); setMedReason(''); setMedNotes('');
-          }}>✅ Log Medication</button>
+          }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><CheckCircleIcon /> Log Medication</button>
         </div>
       )}
 
       {activeTab === 'History' && (
         <div>
           <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap' }}>
-            {['All', 'Exposure', 'Symptom', 'Medication'].map(f => (
-              <button key={f} onClick={() => setHistoryFilter(f)} style={{ padding: '6px 14px', borderRadius: 20, border: '1px solid #E9EDEF', cursor: 'pointer', fontWeight: 600, fontSize: 12, background: historyFilter === f ? '#4A7BA7' : '#F0F2F5', color: historyFilter === f ? '#fff' : '#667781' }}>
-                {f === 'All' ? f : `${ICONS[f]} ${f}`}
-              </button>
-            ))}
+            {['All', 'Exposure', 'Symptom', 'Medication'].map(f => {
+              const FilterIcon = ICONS[f];
+              return (
+                <button key={f} onClick={() => setHistoryFilter(f)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '6px 14px', borderRadius: 20, border: '1px solid #E9EDEF', cursor: 'pointer', fontWeight: 600, fontSize: 12, background: historyFilter === f ? '#4A7BA7' : '#F0F2F5', color: historyFilter === f ? '#fff' : '#667781' }}>
+                  {FilterIcon && <FilterIcon />} {f}
+                </button>
+              );
+            })}
           </div>
-          <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Search entries…" style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, marginBottom: 16 }} />
+          <div style={{ position: 'relative', marginBottom: 16 }}>
+            <span style={{ position: 'absolute', left: 10, top: '50%', transform: 'translateY(-50%)', color: '#94a3b8', display: 'flex' }}><SearchIcon /></span>
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search entries…" style={{ width: '100%', padding: '10px 10px 10px 34px', border: '1px solid #E9EDEF', borderRadius: 8 }} />
+          </div>
           {!loaded ? <div style={{ textAlign: 'center', padding: 40, color: '#4A7BA7' }}>Loading...</div>
-            : filteredEntries.length === 0 ? <div style={{ textAlign: 'center', padding: 40, color: '#ccc' }}><div style={{ fontSize: 40, marginBottom: 8 }}>📭</div>No entries found</div>
+            : filteredEntries.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 40, color: '#ccc' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><ClipboardIcon /></div>
+                No entries found
+              </div>
+            )
               : filteredEntries.map(e => <EntryCard key={e.id} entry={e} onDelete={() => deleteEntry(e.id)} />)}
         </div>
       )}

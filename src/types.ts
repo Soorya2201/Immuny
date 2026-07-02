@@ -6,4 +6,5 @@ export type Page =
   | 'community'
   | 'profile'
   | 'symptom-logger'
-  | 'exposure-testing';
+  | 'exposure-testing'
+  | 'resource-hub';

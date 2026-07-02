@@ -10,11 +10,13 @@ import beaImg from './assets/bea.png';
 import ProfilePage from './components/ProfilePage';
 import SymptomLoggerPage from './components/SymptomLogger';
 import ExposureTestingPage from './components/ExposureTesting';
+import ResourceHubPage from './components/ResourceHubPage';
 import HomePage from './components/HomePage';
 import InsightsPage from './components/InsightsPage';
 import VoicePage from './components/VoicePage';
 import CommunityPage from './components/CommunityPage';
 import BottomNav from './components/BottomNav';
+import { ClipboardIcon, MedicalCrossIcon, MicIcon, SendIcon, StopIcon, ThermometerIcon, UtensilsIcon, VolumeIcon } from './components/icons';
 import type { Page } from './types';
 
 // ── 🔴 WATCH SENSOR FEATURE (COMMENTED OUT — ready for future integration) ──
@@ -326,13 +328,10 @@ export default function App() {
 
   // Voice Settings
   const [selectedVoice, setSelectedVoice] = useState<SpeechSynthesisVoice | null>(null);
-  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
-  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
 
-  // Image Upload
+  // Image Upload (kept for future MedGemma re-enable — see MEDGEMMA_ENABLED)
   const [pendingImage, setPendingImage] = useState<File | null>(null);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const imageInputRef = useRef<HTMLInputElement>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const srRef = useRef<{ stop: () => void } | null>(null);
@@ -341,7 +340,6 @@ export default function App() {
   useEffect(() => {
     const loadVoices = () => {
       const voices = window.speechSynthesis.getVoices();
-      setAvailableVoices(voices);
       const preferred =
         voices.find(v => v.name === 'Google UK English Female') ||
         voices.find(v => v.lang === 'en-GB' && v.name.toLowerCase().includes('female')) ||
@@ -462,16 +460,7 @@ export default function App() {
   };
   const stopRecording = () => { srRef.current?.stop(); setIsRecording(false); };
 
-  // ── Image Handlers ──
-  const handleImageSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setPendingImage(file);
-    const reader = new FileReader();
-    reader.onload = ev => setImagePreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
-    e.target.value = '';
-  };
+  // ── Image Handlers (kept for future MedGemma re-enable) ──
   const clearImage = () => { setPendingImage(null); setImagePreview(null); };
 
   // ── SESSION CONTEXT UPDATER ───────────────────────────────────────────────────
@@ -524,7 +513,7 @@ export default function App() {
     const session: LoggingSession = { entryType, currentFieldIndex: 0, collectedData: {} };
     setLoggingSession(session);
     // Announce
-    const announcement = `📋 Sure! Let's log a ${entryType.toLowerCase()}. I'll ask you a few questions.`;
+    const announcement = `Sure! Let's log a ${entryType.toLowerCase()}. I'll ask you a few questions.`;
     injectBubbles(announcement, 'nova', false);
     // Ask first question after a short delay
     const fields = FIELD_SCRIPTS[entryType];
@@ -533,7 +522,7 @@ export default function App() {
 
   const cancelLoggingSession = () => {
     setLoggingSession(null);
-    injectBubbles('✅ Logging cancelled. Feel free to chat normally!', 'nova', false);
+    injectBubbles('Logging cancelled. Feel free to chat normally!', 'nova', false);
   };
 
   const submitLoggedEntry = async (session: LoggingSession) => {
@@ -572,11 +561,11 @@ export default function App() {
         : entryType === 'Exposure'
         ? `${collectedData.subtype || ''} — ${collectedData.name}`
         : `${collectedData.name} ${collectedData.dose || ''}${collectedData.unit || ''}`;
-      injectBubbles(`✅ ${entryType} logged successfully!\n📋 ${summary}\nYou can view it in the Health Logger page.`, 'nova', false);
+      injectBubbles(`${entryType} logged successfully!\n${summary}\nYou can view it in the Health Logger page.`, 'nova', false);
     } catch (e) {
       console.error('Failed to save logged entry:', e);
       setLoggingSession(null);
-      injectBubbles('❌ Sorry, I couldn\'t save that entry. Please try logging it manually in the Health Logger.', 'nova', false);
+      injectBubbles('Sorry, I couldn\'t save that entry. Please try logging it manually in the Health Logger.', 'nova', false);
     }
   };
 
@@ -634,7 +623,7 @@ export default function App() {
     const hasImage = pendingImage !== null;
     if ((!hasText && !hasImage) || loading) return;
 
-    const userContent = hasText ? rawText.trim() : '📷 What do you see in this image?';
+    const userContent = hasText ? rawText.trim() : 'What do you see in this image?';
     const userMsg: Message = {
       id: Date.now().toString(),
       role: 'user',
@@ -793,9 +782,9 @@ export default function App() {
             <h2>Immuny</h2>
             <p className="tagline">ALLERGY AI ALLY</p>
             <div className="quick-actions">
-              <button onClick={() => setInputText('Any allergy symptoms to check on?')}>🤧 Check allergies</button>
-              <button onClick={() => setInputText('Is it safe to eat strawberries with my allergy?')}>🍓 Food allergies</button>
-              <button onClick={() => setInputText('What should I do during an allergic reaction?')}>🏥 Reaction guide</button>
+              <button onClick={() => setInputText('Any allergy symptoms to check on?')}><ThermometerIcon /> Check allergies</button>
+              <button onClick={() => setInputText('Is it safe to eat strawberries with my allergy?')}><UtensilsIcon /> Food allergies</button>
+              <button onClick={() => setInputText('What should I do during an allergic reaction?')}><MedicalCrossIcon /> Reaction guide</button>
             </div>
           </div>
         ) : (
@@ -834,7 +823,7 @@ export default function App() {
             border: '1px solid #4A7BA7', fontSize: 13, fontWeight: 600, color: '#2E5A7E',
           }}>
             <span>
-              📋 Logging {loggingSession.entryType}
+              <ClipboardIcon /> Logging {loggingSession.entryType}
               {' '}
               ({Math.min(loggingSession.currentFieldIndex + 1, FIELD_SCRIPTS[loggingSession.entryType].length)}/{FIELD_SCRIPTS[loggingSession.entryType].length})
             </span>
@@ -846,73 +835,32 @@ export default function App() {
         )}
         {isSpeaking && (
           <div className="speaking-banner">
-            <span>🔊 Speaking ({selectedVoice?.name || 'Default Voice'})…</span>
+            <span><VolumeIcon /> Speaking ({selectedVoice?.name || 'Default Voice'})…</span>
             <button onClick={stopSpeaking}>Stop</button>
           </div>
         )}
-        {imagePreview && (
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 10, padding: '8px 12px',
-            background: '#fff', borderRadius: 8, marginBottom: 8, border: '1px solid #4A7BA7',
-          }}>
-            <img src={imagePreview} alt="Selected" style={{ width: 48, height: 48, objectFit: 'cover', borderRadius: 6 }} />
-            <span style={{ flex: 1, fontSize: 12, color: '#4A7BA7', fontWeight: 600 }}>
-              📷 Image ready — add a question or press send
-            </span>
-            <button onClick={clearImage}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: 18, color: '#DC2626' }}>✕</button>
-          </div>
-        )}
         <div className="input-bar">
-          <input type="file" accept="image/*" ref={imageInputRef} onChange={handleImageSelect} style={{ display: 'none' }} />
-          <button onClick={() => setShowVoiceSettings(!showVoiceSettings)} className="settings-btn" title="Voice settings">⚙️</button>
-          <button onClick={() => imageInputRef.current?.click()} className="settings-btn" title="Upload a photo"
-            style={{ background: imagePreview ? '#4A7BA7' : 'white', color: imagePreview ? 'white' : '#4A7BA7', fontSize: '1.3rem' }}>📷</button>
+          <button onClick={isRecording ? stopRecording : startRecording}
+            className={`voice-btn ${isRecording ? 'recording' : ''}`}
+            title={isRecording ? 'Stop' : 'Voice input'}>
+            {isRecording ? <StopIcon /> : <MicIcon />}
+          </button>
           <input
             type="text"
             value={inputText}
             onChange={e => setInputText(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && void sendMessage()}
-            placeholder={isRecording ? 'Listening...' : imagePreview ? 'Ask about the image…' : 'Type a message…'}
+            placeholder={isRecording ? 'Listening...' : 'Type a message…'}
             className="message-input"
           />
-          <button onClick={isRecording ? stopRecording : startRecording}
-            className={`voice-btn ${isRecording ? 'recording' : ''}`}
-            title={isRecording ? 'Stop' : 'Voice input'}>
-            {isRecording ? '⏹️' : '🎤'}
+          <button onClick={() => void sendMessage()} disabled={(!inputText.trim() && !pendingImage) || loading} className="send-btn">
+            <SendIcon />
           </button>
-          <button onClick={() => void sendMessage()} disabled={(!inputText.trim() && !pendingImage) || loading} className="send-btn">➤</button>
         </div>
+        <p className="chat-disclaimer">
+          Immuny helps track experiences and patterns and does not provide medical advice.
+        </p>
       </div>
-
-      {showVoiceSettings && (
-        <div className="voice-settings-modal">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3>🎙️ Voice Settings</h3>
-              <button onClick={() => setShowVoiceSettings(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <label>Select Voice for AI Responses:</label>
-              <select value={selectedVoice?.name || ''} onChange={(e) => {
-                const voice = availableVoices.find(v => v.name === e.target.value);
-                setSelectedVoice(voice || null);
-              }} className="voice-select">
-                {availableVoices.map((voice) => (
-                  <option key={voice.name} value={voice.name}>{voice.name} ({voice.lang})</option>
-                ))}
-              </select>
-              <div className="voice-test">
-                <button onClick={() => speakText("Hello! This is Immuny, your allergy AI ally.")} className="test-voice-btn">🔊 Test Voice</button>
-              </div>
-              <div className="api-info">
-                <p><strong>AI Model:</strong></p>
-                <p className="info-note">⚡ Nova Micro — all queries (via AWS Bedrock)</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </>
   );
 
@@ -925,6 +873,7 @@ export default function App() {
       case 'profile':         return <ProfilePage />;
       case 'symptom-logger':  return <SymptomLoggerPage />;
       case 'exposure-testing': return <ExposureTestingPage />;
+      case 'resource-hub':     return <ResourceHubPage onNavigate={navigateTo} />;
       case 'chat':            return renderChat();
       default:                return <HomePage onNavigate={navigateTo} />;
     }

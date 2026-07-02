@@ -1,6 +1,29 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ComponentType } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
+import {
+  AlertTriangleIcon,
+  BarChartIcon,
+  BellIcon,
+  CameraIcon,
+  CheckCircleIcon,
+  ChevronDownIcon,
+  ClipboardIcon,
+  CloseIcon,
+  FlaskIcon,
+  MedicalCrossIcon,
+  MessageCircleIcon,
+  NoteIcon,
+  PillIcon,
+  PlusIcon,
+  SaveIcon,
+  ThermometerIcon,
+  UserIcon,
+  UsersIcon,
+  UtensilsIcon,
+  ZapIcon,
+} from './icons';
+import StatusMessage from './StatusMessage';
 
 const client = generateClient<Schema>();
 
@@ -24,6 +47,20 @@ interface FamilyMemberData {
 }
 
 const RELATIONSHIPS = ['Spouse', 'Child', 'Parent', 'Sibling', 'Grandparent', 'Other'];
+
+const LOG_TYPE_META: Record<string, { Icon: ComponentType; label: string }> = {
+  user_query: { Icon: UserIcon, label: 'You asked' },
+  medical_response: { Icon: FlaskIcon, label: 'MedGemma' },
+  nova_reply: { Icon: ZapIcon, label: 'Nova' },
+  image_analysis: { Icon: CameraIcon, label: 'Image' },
+};
+
+function LogTypeLabel({ type }: { type: string }) {
+  const meta = LOG_TYPE_META[type];
+  if (!meta) return <>{type}</>;
+  const { Icon, label } = meta;
+  return <><Icon /> {label}</>;
+}
 
 interface ConversationLog {
   type: string;
@@ -51,18 +88,18 @@ function formatDate(iso: string) {
 }
 
 // ── Collapsible Section ──
-function Section({ title, icon, badge, defaultOpen = false, children }: {
-  title: string; icon: string; badge?: string | number;
+function Section({ title, icon: Icon, badge, defaultOpen = false, children }: {
+  title: string; icon: ComponentType; badge?: string | number;
   defaultOpen?: boolean; children: React.ReactNode;
 }) {
   const [open, setOpen] = useState(defaultOpen);
   return (
     <div className="profile-section">
       <button onClick={() => setOpen(!open)} className="profile-section-header">
-        <span>{icon} {title}</span>
+        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Icon /> {title}</span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           {badge !== undefined && <span className="profile-badge">{badge}</span>}
-          <span style={{ fontSize: 12, transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}>▼</span>
+          <span style={{ display: 'flex', transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}><ChevronDownIcon /></span>
         </span>
       </button>
       {open && <div className="profile-section-body">{children}</div>}
@@ -94,7 +131,7 @@ export default function ProfilePage() {
   const [medicalHistory, setMedicalHistory] = useState('');
   const [profileId, setProfileId] = useState<string | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
-  const [profileMsg, setProfileMsg] = useState('');
+  const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // ── Activity data ──
   const [chatLogs, setChatLogs] = useState<ConversationLog[]>([]);
@@ -196,12 +233,12 @@ export default function ProfilePage() {
         });
         if (created) setProfileId(created.id);
       }
-      setProfileMsg('✅ Profile saved!');
-      setTimeout(() => setProfileMsg(''), 2000);
+      setProfileMsg({ type: 'success', text: 'Profile saved!' });
+      setTimeout(() => setProfileMsg(null), 2000);
     } catch (e) {
       console.error('Failed to save profile:', e);
-      setProfileMsg('❌ Save failed');
-      setTimeout(() => setProfileMsg(''), 3000);
+      setProfileMsg({ type: 'error', text: 'Save failed' });
+      setTimeout(() => setProfileMsg(null), 3000);
     }
   };
 
@@ -233,11 +270,11 @@ export default function ProfilePage() {
       }
       setFmName(''); setFmAge(''); setFmAllergies(''); setFmConditions('');
       setFmMedications(''); setFmNotes(''); setShowAddFamily(false);
-      setProfileMsg('✅ Family member added!');
-      setTimeout(() => setProfileMsg(''), 2000);
+      setProfileMsg({ type: 'success', text: 'Family member added!' });
+      setTimeout(() => setProfileMsg(null), 2000);
     } catch (e) {
       console.error('Failed to add family member:', e);
-      setProfileMsg('❌ Failed to add'); setTimeout(() => setProfileMsg(''), 3000);
+      setProfileMsg({ type: 'error', text: 'Failed to add' }); setTimeout(() => setProfileMsg(null), 3000);
     }
   };
 
@@ -258,43 +295,44 @@ export default function ProfilePage() {
 
   return (
     <div className="page-container">
-      <h2>👤 Profile</h2>
+      <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><UserIcon /> Profile</h2>
 
       {profileMsg && (
         <div style={{
-          background: profileMsg.startsWith('✅') ? '#D1E7F4' : '#FFF5F5',
-          border: `1px solid ${profileMsg.startsWith('✅') ? '#4A7BA7' : '#DC2626'}`,
-          borderRadius: 6, padding: '10px 16px', marginBottom: 16,
-          color: profileMsg.startsWith('✅') ? '#4A7BA7' : '#DC2626', fontWeight: 600,
-        }}>{profileMsg}</div>
+          background: profileMsg.type === 'success' ? '#D1E7F4' : '#FFF5F5',
+          border: `1px solid ${profileMsg.type === 'success' ? '#4A7BA7' : '#DC2626'}`,
+          borderRadius: 6, padding: '10px 16px', marginBottom: 16, fontWeight: 600,
+        }}>
+          <StatusMessage type={profileMsg.type} text={profileMsg.text} />
+        </div>
       )}
 
       {/* ── Quick Stats ── */}
       <div className="profile-stats-grid">
         <div className="profile-stat-card">
-          <div className="profile-stat-icon">💬</div>
+          <div className="profile-stat-icon"><MessageCircleIcon /></div>
           <div className="profile-stat-value">{chatCount}</div>
           <div className="profile-stat-label">Chat Interactions</div>
         </div>
         <div className="profile-stat-card">
-          <div className="profile-stat-icon">🤒</div>
+          <div className="profile-stat-icon"><ThermometerIcon /></div>
           <div className="profile-stat-value">{symptomCount}</div>
           <div className="profile-stat-label">Symptoms Logged</div>
         </div>
         <div className="profile-stat-card">
-          <div className="profile-stat-icon">🧪</div>
+          <div className="profile-stat-icon"><FlaskIcon /></div>
           <div className="profile-stat-value">{testCount}</div>
           <div className="profile-stat-label">Exposure Tests</div>
         </div>
         <div className="profile-stat-card">
-          <div className="profile-stat-icon">💊</div>
+          <div className="profile-stat-icon"><PillIcon /></div>
           <div className="profile-stat-value">{medCount}</div>
           <div className="profile-stat-label">Medications</div>
         </div>
       </div>
 
       {/* ── Personal Info ── */}
-      <Section title="Personal Information" icon="📝" defaultOpen={true}>
+      <Section title="Personal Information" icon={NoteIcon} defaultOpen={true}>
         {!profileLoaded ? (
           <div style={{ textAlign: 'center', padding: 20, color: '#4A7BA7' }}>Loading profile...</div>
         ) : (
@@ -318,12 +356,12 @@ export default function ProfilePage() {
       </Section>
 
       {/* ── Chat History ── */}
-      <Section title="Chat Conversations" icon="💬" badge={chatCount}>
+      <Section title="Chat Conversations" icon={MessageCircleIcon} badge={chatCount}>
         {!activityLoaded ? (
           <div style={{ textAlign: 'center', padding: 20, color: '#4A7BA7' }}>Loading...</div>
         ) : chatLogs.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 30, color: '#bbb' }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>💬</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><MessageCircleIcon /></div>
             No chat conversations yet. Start chatting with Immuny!
           </div>
         ) : (
@@ -332,13 +370,11 @@ export default function ProfilePage() {
               <div key={i} className="profile-activity-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                   <span className="profile-activity-type" style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
                     background: log.type === 'user_query' ? '#D9FDD3' : log.type === 'medical_response' ? '#F3E8FF' : '#D1E7F4',
                     color: log.type === 'user_query' ? '#155724' : log.type === 'medical_response' ? '#7C3AED' : '#4A7BA7',
                   }}>
-                    {log.type === 'user_query' ? '🗣️ You asked' :
-                     log.type === 'medical_response' ? '🔬 MedGemma' :
-                     log.type === 'nova_reply' ? '⚡ Nova' :
-                     log.type === 'image_analysis' ? '📷 Image' : log.type}
+                    <LogTypeLabel type={log.type} />
                   </span>
                   <span style={{ fontSize: 11, color: '#999' }}>{formatDate(log.ts)}</span>
                 </div>
@@ -357,12 +393,12 @@ export default function ProfilePage() {
       </Section>
 
       {/* ── Symptom & Health Log ── */}
-      <Section title="Health Log Entries" icon="📋" badge={healthEntries.length}>
+      <Section title="Health Log Entries" icon={ClipboardIcon} badge={healthEntries.length}>
         {!activityLoaded ? (
           <div style={{ textAlign: 'center', padding: 20, color: '#4A7BA7' }}>Loading...</div>
         ) : healthEntries.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 30, color: '#bbb' }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>📋</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><ClipboardIcon /></div>
             No health entries yet. Use the Health Logger to start tracking.
           </div>
         ) : (
@@ -371,10 +407,11 @@ export default function ProfilePage() {
               <div key={entry.id} className="profile-activity-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                   <span className="profile-activity-type" style={{
+                    display: 'flex', alignItems: 'center', gap: 4,
                     background: entry.type === 'Symptom' ? '#FFF5F5' : entry.type === 'Exposure' ? '#FFF8E7' : '#D1E7F4',
                     color: entry.type === 'Symptom' ? '#DC2626' : entry.type === 'Exposure' ? '#B8860B' : '#4A7BA7',
                   }}>
-                    {entry.type === 'Symptom' ? '🤒' : entry.type === 'Exposure' ? '🍽️' : '💊'} {entry.type}
+                    {entry.type === 'Symptom' ? <ThermometerIcon /> : entry.type === 'Exposure' ? <UtensilsIcon /> : <PillIcon />} {entry.type}
                   </span>
                   <span style={{ fontSize: 11, color: '#999' }}>{formatDate(entry.time)}</span>
                 </div>
@@ -400,12 +437,12 @@ export default function ProfilePage() {
       </Section>
 
       {/* ── Exposure Tests ── */}
-      <Section title="Exposure Tests" icon="🧪" badge={`${completedTests}/${testCount}`}>
+      <Section title="Exposure Tests" icon={FlaskIcon} badge={`${completedTests}/${testCount}`}>
         {!activityLoaded ? (
           <div style={{ textAlign: 'center', padding: 20, color: '#4A7BA7' }}>Loading...</div>
         ) : exposureTests.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 30, color: '#bbb' }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>🧫</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><FlaskIcon /></div>
             No exposure tests yet. Use the Exposure Testing page to start.
           </div>
         ) : (
@@ -419,17 +456,17 @@ export default function ProfilePage() {
                     color: test.status === 'completed' ? '#155724' : test.status === 'active' ? '#4A7BA7' : '#667781',
                   }}>{test.status}</span>
                 </div>
-                <div style={{ fontSize: 13, color: '#667781' }}>
-                  🧪 {test.allergen} · {test.amount}{test.unit} · {test.testDate}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, color: '#667781' }}>
+                  <FlaskIcon /> {test.allergen} · {test.amount}{test.unit} · {test.testDate}
                 </div>
                 {test.results && (
-                  <div style={{ fontSize: 12, marginTop: 6, padding: '6px 10px', background: '#F0F2F5', borderRadius: 6 }}>
-                    📊 {test.results}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginTop: 6, padding: '6px 10px', background: '#F0F2F5', borderRadius: 6 }}>
+                    <BarChartIcon /> {test.results}
                   </div>
                 )}
                 {test.reactions && (
-                  <div style={{ fontSize: 12, marginTop: 4, padding: '6px 10px', background: '#FFF5F5', borderRadius: 6, color: '#DC2626' }}>
-                    ⚠️ {test.reactions}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, marginTop: 4, padding: '6px 10px', background: '#FFF5F5', borderRadius: 6, color: '#DC2626' }}>
+                    <AlertTriangleIcon /> {test.reactions}
                   </div>
                 )}
               </div>
@@ -439,10 +476,10 @@ export default function ProfilePage() {
       </Section>
 
       {/* ── Family Members ── */}
-      <Section title="Family Members" icon="👨‍👩‍👧‍👦" badge={familyMembers.length} defaultOpen={true}>
+      <Section title="Family Members" icon={UsersIcon} badge={familyMembers.length} defaultOpen={true}>
         {familyMembers.length === 0 && !showAddFamily ? (
           <div style={{ textAlign: 'center', padding: 30, color: '#bbb' }}>
-            <div style={{ fontSize: 32, marginBottom: 8 }}>👨‍👩‍👧‍👦</div>
+            <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><UsersIcon /></div>
             No family members added yet.
           </div>
         ) : (
@@ -457,23 +494,23 @@ export default function ProfilePage() {
                       {fm.age && <span style={{ fontSize: 12, color: '#667781' }}>Age {fm.age}</span>}
                     </div>
                     {fm.knownAllergies && (
-                      <div style={{ fontSize: 13, marginTop: 4 }}>
-                        <span style={{ color: '#DC2626', fontWeight: 600 }}>⚠️ Allergies:</span> <span style={{ color: '#3B4A54' }}>{fm.knownAllergies}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, marginTop: 4 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#DC2626', fontWeight: 600 }}><AlertTriangleIcon /> Allergies:</span> <span style={{ color: '#3B4A54' }}>{fm.knownAllergies}</span>
                       </div>
                     )}
                     {fm.medicalConditions && (
-                      <div style={{ fontSize: 13, marginTop: 2 }}>
-                        <span style={{ color: '#4A7BA7', fontWeight: 600 }}>🏥 Conditions:</span> <span style={{ color: '#3B4A54' }}>{fm.medicalConditions}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, marginTop: 2 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#4A7BA7', fontWeight: 600 }}><MedicalCrossIcon /> Conditions:</span> <span style={{ color: '#3B4A54' }}>{fm.medicalConditions}</span>
                       </div>
                     )}
                     {fm.medications && (
-                      <div style={{ fontSize: 13, marginTop: 2 }}>
-                        <span style={{ color: '#7C3AED', fontWeight: 600 }}>💊 Medications:</span> <span style={{ color: '#3B4A54' }}>{fm.medications}</span>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, marginTop: 2 }}>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: 4, color: '#7C3AED', fontWeight: 600 }}><PillIcon /> Medications:</span> <span style={{ color: '#3B4A54' }}>{fm.medications}</span>
                       </div>
                     )}
-                    {fm.notes && <div style={{ fontSize: 12, color: '#667781', marginTop: 4, fontStyle: 'italic' }}>📝 {fm.notes}</div>}
+                    {fm.notes && <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#667781', marginTop: 4, fontStyle: 'italic' }}><NoteIcon /> {fm.notes}</div>}
                   </div>
-                  <button onClick={() => deleteFamilyMember(fm.id)} style={{ background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', color: '#DC2626', fontSize: 11, flexShrink: 0 }}>✕</button>
+                  <button onClick={() => deleteFamilyMember(fm.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', color: '#DC2626', flexShrink: 0 }}><CloseIcon /></button>
                 </div>
               </div>
             ))}
@@ -482,7 +519,7 @@ export default function ProfilePage() {
 
         {showAddFamily ? (
           <div style={{ marginTop: 16, padding: 16, background: '#F8FBFF', borderRadius: 10, border: '1px solid #D1E7F4' }}>
-            <h4 style={{ color: '#4A7BA7', marginBottom: 12, fontSize: 14 }}>➕ Add Family Member</h4>
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4A7BA7', marginBottom: 12, fontSize: 14 }}><PlusIcon /> Add Family Member</h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group" style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 13 }}>Name *</label>
@@ -517,19 +554,19 @@ export default function ProfilePage() {
                 style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontFamily: 'inherit', fontSize: '0.875rem' }} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="save-btn" onClick={addFamilyMember} style={{ padding: '10px 20px', fontSize: 13 }}>✅ Add Member</button>
+              <button className="save-btn" onClick={addFamilyMember} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 20px', fontSize: 13 }}><CheckCircleIcon /> Add Member</button>
               <button onClick={() => setShowAddFamily(false)} style={{ padding: '10px 20px', fontSize: 13, background: 'none', border: '1px solid #E9EDEF', borderRadius: 8, cursor: 'pointer', color: '#667781' }}>Cancel</button>
             </div>
           </div>
         ) : (
-          <button onClick={() => setShowAddFamily(true)} style={{ marginTop: 12, width: '100%', padding: 12, background: 'none', border: '2px dashed #D1E7F4', borderRadius: 8, color: '#4A7BA7', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>
-            ➕ Add Family Member
+          <button onClick={() => setShowAddFamily(true)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, marginTop: 12, width: '100%', padding: 12, background: 'none', border: '2px dashed #D1E7F4', borderRadius: 8, color: '#4A7BA7', fontWeight: 600, cursor: 'pointer', fontSize: 14 }}>
+            <PlusIcon /> Add Family Member
           </button>
         )}
       </Section>
 
       {/* ── Notifications & Personalization ── */}
-      <Section title="Notifications & Personalization" icon="🔔" defaultOpen={true}>
+      <Section title="Notifications & Personalization" icon={BellIcon} defaultOpen={true}>
         <Toggle
           label="Symptom Reminders"
           description="Get reminded to log symptoms when triggered"
@@ -557,8 +594,8 @@ export default function ProfilePage() {
       </Section>
 
       {/* ── Save Button ── */}
-      <button className="save-btn" onClick={saveProfile} style={{ width: '100%', marginTop: 24, padding: 14, fontSize: 15 }}>
-        💾 Save Profile & Preferences
+      <button className="save-btn" onClick={saveProfile} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginTop: 24, padding: 14, fontSize: 15 }}>
+        <SaveIcon /> Save Profile & Preferences
       </button>
     </div>
   );

@@ -4,6 +4,19 @@ import type { Schema } from '../../amplify/data/resource';
 import type { Page } from '../types';
 import beaImg from '../assets/bea.png';
 import { formatRelativeTime } from '../utils/formatTime';
+import {
+  ArrowRightIcon,
+  ChatBubbleIcon,
+  ClipboardIcon,
+  FlaskIcon,
+  NoteIcon,
+  PillIcon,
+  SparkleIcon,
+  ThermometerIcon,
+  UtensilsIcon,
+  WaveformIcon,
+} from './icons';
+import type { ComponentType } from 'react';
 
 const client = generateClient<Schema>();
 
@@ -15,10 +28,10 @@ interface RecentEntry {
   severity?: number | null;
 }
 
-const TYPE_ICON: Record<string, string> = {
-  Exposure: '🍽️',
-  Symptom: '🤒',
-  Medication: '💊',
+const TYPE_ICON: Record<string, ComponentType> = {
+  Exposure: UtensilsIcon,
+  Symptom: ThermometerIcon,
+  Medication: PillIcon,
 };
 
 const SEVERITY_COLOR = (v: number) =>
@@ -76,17 +89,26 @@ export default function HomePage({ onNavigate, userName }: HomePageProps) {
       {/* ── Action tiles ── */}
       <div className="home-tiles">
         <button className="home-tile home-tile--tall" onClick={() => onNavigate('voice')}>
-          <span className="tile-arrow">→</span>
+          <span className="tile-top-row">
+            <span className="tile-icon"><WaveformIcon /></span>
+            <span className="tile-arrow"><ArrowRightIcon /></span>
+          </span>
           <span className="tile-label">voice chat with Bea</span>
         </button>
 
         <button className="home-tile" onClick={() => onNavigate('chat')}>
-          <span className="tile-arrow">→</span>
+          <span className="tile-top-row">
+            <span className="tile-icon"><ChatBubbleIcon /></span>
+            <span className="tile-arrow"><ArrowRightIcon /></span>
+          </span>
           <span className="tile-label">text with Bea</span>
         </button>
 
         <button className="home-tile" onClick={() => onNavigate('insights')}>
-          <span className="tile-arrow">→</span>
+          <span className="tile-top-row">
+            <span className="tile-icon"><SparkleIcon /></span>
+            <span className="tile-arrow"><ArrowRightIcon /></span>
+          </span>
           <span className="tile-label">Bea's insight explanation</span>
         </button>
       </div>
@@ -104,14 +126,16 @@ export default function HomePage({ onNavigate, userName }: HomePageProps) {
           <div className="home-recent-empty">
             No entries yet.{' '}
             <button onClick={() => onNavigate('symptom-logger')} className="link-btn">
-              Log your first entry →
+              Log your first entry
             </button>
           </div>
         ) : (
           <div className="home-recent-list">
-            {recentEntries.map(entry => (
+            {recentEntries.map(entry => {
+              const Icon = TYPE_ICON[entry.type] ?? NoteIcon;
+              return (
               <div key={entry.id} className="home-recent-card">
-                <span className="recent-icon">{TYPE_ICON[entry.type] ?? '📝'}</span>
+                <span className="recent-icon"><Icon /></span>
                 <div className="recent-details">
                   <span className="recent-name">{entry.name}</span>
                   {entry.severity != null && (
@@ -125,7 +149,8 @@ export default function HomePage({ onNavigate, userName }: HomePageProps) {
                 </div>
                 <span className="recent-time">{formatRelativeTime(entry.time)}</span>
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -133,10 +158,10 @@ export default function HomePage({ onNavigate, userName }: HomePageProps) {
       {/* ── Quick shortcuts ── */}
       <div className="home-shortcuts">
         <button className="home-shortcut" onClick={() => onNavigate('symptom-logger')}>
-          📋 Health Logger
+          <ClipboardIcon /> Health Logger
         </button>
         <button className="home-shortcut" onClick={() => onNavigate('exposure-testing')}>
-          🧪 Exposure Testing
+          <FlaskIcon /> Exposure Testing
         </button>
       </div>
     </div>

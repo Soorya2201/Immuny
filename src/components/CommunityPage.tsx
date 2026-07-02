@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import { formatPostTime } from '../utils/formatTime';
+import { ChatBubbleIcon, CloseIcon, ShareIcon, ThumbsUpIcon } from './icons';
+import StatusMessage from './StatusMessage';
 
 const client = generateClient<Schema>();
 
@@ -101,7 +103,7 @@ function PostCard({
             onClick={() => setConfirmDelete(true)}
             title="Delete post"
           >
-            ✕
+            <CloseIcon />
           </button>
         )}
         {post.isOwner && confirmDelete && (
@@ -118,13 +120,13 @@ function PostCard({
 
       <div className="community-post-actions">
         <button className="community-action-btn" onClick={() => onLike(post.id, post.likes)}>
-          👍 <span>{post.likes > 0 ? post.likes : ''}</span>
+          <ThumbsUpIcon /> <span>{post.likes > 0 ? post.likes : ''}</span>
         </button>
         <button className="community-action-btn">
-          💬 <span>Comment</span>
+          <ChatBubbleIcon /> <span>Comment</span>
         </button>
         <button className="community-action-btn">
-          ↗ Share
+          <ShareIcon /> Share
         </button>
       </div>
     </div>
@@ -151,7 +153,7 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
   const [postTitle, setPostTitle] = useState('');
   const [postContent, setPostContent] = useState('');
   const [postSaving, setPostSaving] = useState(false);
-  const [savedMsg, setSavedMsg] = useState('');
+  const [savedMsg, setSavedMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
     (async () => {
@@ -225,12 +227,12 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
       setPostTitle('');
       setPostContent('');
       setShowCreatePost(false);
-      setSavedMsg('✅ Posted!');
-      setTimeout(() => setSavedMsg(''), 3000);
+      setSavedMsg({ type: 'success', text: 'Posted!' });
+      setTimeout(() => setSavedMsg(null), 3000);
     } catch (e) {
       console.error('CommunityPage: failed to create post', e);
-      setSavedMsg('❌ Failed to post');
-      setTimeout(() => setSavedMsg(''), 3000);
+      setSavedMsg({ type: 'error', text: 'Failed to post' });
+      setTimeout(() => setSavedMsg(null), 3000);
     } finally {
       setPostSaving(false);
     }
@@ -340,7 +342,11 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
           >
             {postSaving ? 'Posting…' : 'Post'}
           </button>
-          {savedMsg && <p style={{ textAlign: 'center', marginTop: 10, color: '#4A7BA7' }}>{savedMsg}</p>}
+          {savedMsg && (
+            <p style={{ textAlign: 'center', marginTop: 10 }}>
+              <StatusMessage type={savedMsg.type} text={savedMsg.text} />
+            </p>
+          )}
         </div>
       </div>
     );
@@ -374,7 +380,9 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
       </div>
 
       {savedMsg && (
-        <div className="community-toast">{savedMsg}</div>
+        <div className="community-toast">
+          <StatusMessage type={savedMsg.type} text={savedMsg.text} />
+        </div>
       )}
 
       {tab === 'social' && (
