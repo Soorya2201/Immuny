@@ -12,6 +12,7 @@ import SymptomLoggerPage from './components/SymptomLogger';
 import ExposureTestingPage from './components/ExposureTesting';
 import ResourceHubPage from './components/ResourceHubPage';
 import MedicationsPage from './components/MedicationsPage';
+import FoodTrackerPage from './components/FoodTrackerPage';
 import HomePage from './components/HomePage';
 import OnboardingPage from './components/OnboardingPage';
 import InsightsPage from './components/InsightsPage';
@@ -330,6 +331,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
   const [isRecording, setIsRecording] = useState(false);
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [symptomLoggerTab, setSymptomLoggerTab] = useState<'Exposure' | 'Symptom' | 'Medication' | 'History'>('Exposure');
+  const [exposureTestingSection, setExposureTestingSection] = useState<string | undefined>(undefined);
   const [hasGreeted, setHasGreeted] = useState(false);
 
   // ── Onboarding gate — new/incomplete profiles see the setup wizard first ──
@@ -801,6 +803,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
 
   const navigateTo = (page: Page, tab?: string) => {
     if (page === 'symptom-logger') setSymptomLoggerTab((tab as typeof symptomLoggerTab) ?? 'Exposure');
+    if (page === 'exposure-testing') setExposureTestingSection(tab);
     setCurrentPage(page);
   };
 
@@ -915,9 +918,10 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       case 'community':       return <CommunityPage currentUserId={userId} />;
       case 'profile':         return <ProfilePage />;
       case 'symptom-logger':  return <SymptomLoggerPage initialTab={symptomLoggerTab} />;
-      case 'exposure-testing': return <ExposureTestingPage />;
+      case 'exposure-testing': return <ExposureTestingPage initialSection={exposureTestingSection} />;
       case 'resource-hub':     return <ResourceHubPage onNavigate={navigateTo} />;
       case 'medications':      return <MedicationsPage onNavigate={navigateTo} />;
+      case 'food-tracker':     return <FoodTrackerPage onNavigate={navigateTo} />;
       case 'chat':            return renderChat();
       default:                return <HomePage onNavigate={navigateTo} />;
     }

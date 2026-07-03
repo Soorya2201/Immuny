@@ -339,7 +339,7 @@ export default function ProfilePage() {
       </div>
 
       {/* ── Personal Info ── */}
-      <Section title="Personal Information" icon={NoteIcon} defaultOpen={true}>
+      <Section title="Personal Information" icon={NoteIcon}>
         {!profileLoaded ? (
           <div style={{ textAlign: 'center', padding: 20, color: '#4A7BA7' }}>Loading profile...</div>
         ) : (

@@ -1,9 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import { AlertTriangleIcon, BarChartIcon, CheckCircleIcon, ClipboardIcon, CloseIcon, FlaskIcon, PlusIcon } from './icons';
 import StatusMessage from './StatusMessage';
 import { toLocalDateInputValue } from '../utils/formatTime';
+import { getBig9Status } from '../utils/allergens';
 
 const client = generateClient<Schema>();
 
@@ -37,7 +38,11 @@ const SAFETY_CHECKS = [
 const REMINDER_OPTIONS = ['5 min', '15 min', '30 min', '1 hour', '2 hours', '4 hours'];
 const DURATION_OPTIONS  = ['1 hour', '2 hours', '4 hours', '8 hours', '12 hours', '24 hours'];
 
-export default function ExposureTestingPage() {
+interface ExposureTestingPageProps {
+  initialSection?: string;
+}
+
+export default function ExposureTestingPage({ initialSection }: ExposureTestingPageProps) {
   const now = new Date();
   const [activeTab, setActiveTab]       = useState<'new' | 'results' | 'history'>('new');
   const [checks, setChecks]             = useState<Record<string, boolean>>({});
@@ -58,6 +63,13 @@ export default function ExposureTestingPage() {
   const [results, setResults]           = useState('');
   const [reactions, setReactions]       = useState('');
   const [savedMsg, setSavedMsg]         = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const big9Ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (initialSection === 'big9') {
+      big9Ref.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [initialSection]);
 
   // ── Load from DynamoDB ──
   useEffect(() => {
@@ -159,9 +171,40 @@ export default function ExposureTestingPage() {
     }
   };
 
+  const completedAllergens = tests.filter(t => t.status === 'completed').map(t => t.allergen);
+  const big9 = getBig9Status(completedAllergens);
+  const big9TestedCount = big9.filter(a => a.tested).length;
+
+  const startTestFor = (name: string) => {
+    setAllergen(name);
+    setActiveTab('new');
+  };
+
   return (
     <div className="page-container">
       <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><FlaskIcon /> Exposure Testing</h2>
+
+      <div ref={big9Ref} className="big9-panel">
+        <div className="big9-panel-header">
+          <span className="big9-panel-title">Big 9 Allergens</span>
+          <span className="big9-panel-count">{big9TestedCount}/9 tested</span>
+        </div>
+        <p className="big9-panel-hint">Tap an allergen to start or review its test.</p>
+        <div className="progress-card-badges">
+          {big9.map(a => (
+            <button
+              key={a.name}
+              className={`progress-badge progress-badge--clickable${a.tested ? ' progress-badge--tested' : ''}`}
+              onClick={() => a.tested ? setActiveTab('history') : startTestFor(a.name)}
+              title={a.tested ? `${a.name} — tested` : `${a.name} — tap to start a test`}
+            >
+              <span className="progress-badge-circle">{a.code}</span>
+              <span className="progress-badge-label">{a.name}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E9EDEF' }}>
         {(['new', 'results', 'history'] as const).map(t => (
           <button key={t} onClick={() => setActiveTab(t)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '10px 16px', border: 'none', background: 'none', cursor: 'pointer', fontWeight: 600, fontSize: 13, color: activeTab === t ? '#4A7BA7' : '#667781', borderBottom: activeTab === t ? '2px solid #4A7BA7' : '2px solid transparent', marginBottom: -2 }}>

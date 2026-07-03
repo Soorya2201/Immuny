@@ -8,4 +8,5 @@ export type Page =
   | 'symptom-logger'
   | 'exposure-testing'
   | 'resource-hub'
-  | 'medications';
+  | 'medications'
+  | 'food-tracker';

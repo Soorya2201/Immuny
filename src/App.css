@@ -1402,6 +1402,412 @@ body {
   border-color: var(--teal-soft);
 }
 
+/* ── Add New Food / Tracker row ── */
+.home-food-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  padding: 4px 12px 10px;
+  z-index: 1;
+  position: relative;
+}
+
+.home-food-col {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.home-food-col-title {
+  font-size: 15px;
+  font-weight: 800;
+  color: #111;
+  padding-left: 2px;
+}
+
+.home-food-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: #fff;
+  border: none;
+  border-radius: 16px;
+  padding: 24px 12px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+
+.home-food-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+}
+
+.home-food-card-icon {
+  color: var(--teal);
+  display: grid;
+  place-items: center;
+}
+
+.home-food-card-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #111;
+}
+
+/* ── Progress card (Big 9 allergens tested) ── */
+.progress-card {
+  display: block;
+  width: calc(100% - 24px);
+  margin: 4px 12px 14px;
+  text-align: left;
+  background: #fff;
+  border: none;
+  border-radius: 16px;
+  padding: 18px 18px 16px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  z-index: 1;
+  position: relative;
+}
+
+.progress-card-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: #111;
+  margin: 0 0 16px;
+}
+
+.progress-card-bar-track {
+  position: relative;
+  height: 6px;
+  background: #e2edf2;
+  border-radius: 99px;
+  margin-bottom: 14px;
+}
+
+.progress-card-bar-fill {
+  position: absolute;
+  left: 0;
+  top: 0;
+  height: 100%;
+  background: var(--teal);
+  border-radius: 99px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-card-bar-thumb {
+  position: absolute;
+  top: 50%;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: var(--teal);
+  border: 3px solid #fff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.25);
+  transform: translate(-50%, -50%);
+  transition: left 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.progress-card-summary {
+  font-size: 14px;
+  font-weight: 600;
+  color: #3b4a54;
+  margin: 0 0 16px;
+}
+
+.progress-card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 4px;
+  justify-content: space-between;
+}
+
+.progress-badge {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  width: 56px;
+}
+
+.progress-badge-circle {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+  font-weight: 800;
+  background: #f0f2f5;
+  color: #94a3b8;
+  border: 2px solid #e2edf2;
+  transition: background 0.2s, border-color 0.2s, color 0.2s;
+}
+
+.progress-badge--tested .progress-badge-circle {
+  background: linear-gradient(135deg, #f5c842, #f5a742);
+  color: #fff;
+  border-color: transparent;
+}
+
+.progress-badge-label {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #94a3b8;
+  text-align: center;
+  line-height: 1.2;
+}
+
+.progress-badge--tested .progress-badge-label {
+  color: #3b4a54;
+}
+
+.progress-badge--clickable {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-family: inherit;
+  transition: transform 0.12s;
+}
+
+.progress-badge--clickable:hover {
+  transform: translateY(-2px);
+}
+
+/* ── Big 9 Allergens panel (Exposure Testing) ── */
+.big9-panel {
+  background: #f8fbff;
+  border: 1px solid #d1e7f4;
+  border-radius: 12px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.big9-panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 4px;
+}
+
+.big9-panel-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: #4a7ba7;
+}
+
+.big9-panel-count {
+  font-size: 12px;
+  font-weight: 700;
+  color: #667781;
+  background: #fff;
+  border: 1px solid #e2edf2;
+  border-radius: 99px;
+  padding: 3px 10px;
+}
+
+.big9-panel-hint {
+  font-size: 12px;
+  color: #94a3b8;
+  margin: 0 0 14px;
+}
+
+/* ── Symptom overview chart ── */
+.symptom-overview-card {
+  margin: 4px 12px 14px;
+  background: #fff;
+  border-radius: 16px;
+  padding: 16px 18px 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  z-index: 1;
+  position: relative;
+}
+
+.symptom-overview-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.symptom-overview-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: 800;
+  color: #111;
+}
+
+.symptom-overview-title svg {
+  color: var(--teal);
+  flex-shrink: 0;
+}
+
+.symptom-overview-toggle {
+  display: flex;
+  background: #eef2f5;
+  border-radius: 99px;
+  padding: 3px;
+  flex-shrink: 0;
+}
+
+.symptom-overview-toggle button {
+  border: none;
+  background: none;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #667781;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+
+.symptom-overview-toggle button.active {
+  background: var(--teal);
+  color: #fff;
+}
+
+.symptom-overview-body {
+  position: relative;
+}
+
+.symptom-overview-svg {
+  width: 100%;
+  height: 80px;
+  display: block;
+  overflow: visible;
+}
+
+.symptom-overview-baseline {
+  stroke: #e2edf2;
+  stroke-width: 2;
+}
+
+.symptom-overview-line {
+  fill: none;
+  stroke: var(--teal-soft);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+.symptom-overview-labels {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 2px;
+}
+
+.symptom-overview-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  flex: 1;
+  text-align: center;
+}
+
+.symptom-overview-caption {
+  font-size: 13px;
+  color: #667781;
+  margin: 12px 0 0;
+}
+
+/* ── Resource Hub & External Links (Home) ── */
+.home-resource-hub {
+  padding: 4px 12px 24px;
+  z-index: 1;
+  position: relative;
+}
+
+.home-section-title {
+  font-size: 20px;
+  font-weight: 800;
+  color: #111;
+  margin: 4px 2px 10px;
+}
+
+.home-resource-links-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 8px;
+  width: 100%;
+  background: #fff;
+  border: none;
+  border-radius: 16px;
+  padding: 20px 14px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.08);
+  margin-bottom: 10px;
+}
+
+.home-resource-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+  text-align: center;
+}
+
+.home-resource-link-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--teal);
+  border: 1.5px solid var(--teal-soft);
+  flex-shrink: 0;
+}
+
+.home-resource-link span:last-child {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #111;
+  line-height: 1.25;
+}
+
+.home-resource-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.home-resource-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--teal-light);
+  border: none;
+  border-radius: 14px;
+  padding: 22px 10px;
+  cursor: pointer;
+  color: var(--teal);
+  transition: background 0.15s, transform 0.12s;
+}
+
+.home-resource-tile span {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0a4b61;
+}
+
+.home-resource-tile:hover {
+  background: #c9ecf3;
+  transform: translateY(-2px);
+}
+
+.home-resource-tile--wide {
+  grid-column: 1 / -1;
+}
+
 .link-btn {
   background: none;
   border: none;
@@ -3975,4 +4381,201 @@ body {
 .onboarding-shortcut-row svg:last-child {
   color: #94a3b8;
   flex-shrink: 0;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FOOD TRACKER — 3-step guided food logging flow
+   ═══════════════════════════════════════════════════════════════════════════ */
+.food-tracker-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.food-tracker-back {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--teal, #0188b4);
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  transition: background 0.15s;
+  flex-shrink: 0;
+}
+
+.food-tracker-back:hover {
+  background: var(--teal-light, #dff4f8);
+}
+
+.food-tracker-step-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.food-tracker-photo-box {
+  height: 180px;
+  border: 1.5px dashed #cbd5e1;
+  border-radius: 12px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  background: #f8fbff;
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.food-tracker-photo-box:hover {
+  border-color: var(--teal-soft, #78c0d7);
+  background: var(--teal-light, #dff4f8);
+}
+
+.food-tracker-photo-placeholder {
+  font-size: 14px;
+  color: #94a3b8;
+  padding: 0 20px;
+  text-align: center;
+}
+
+.food-tracker-photo-preview {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.food-tracker-photo-buttons {
+  margin-bottom: 20px;
+}
+
+.food-tracker-photo-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  background: var(--teal-light, #dff4f8);
+  border: none;
+  border-radius: 10px;
+  color: var(--teal, #0188b4);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.food-tracker-photo-btn:hover {
+  background: #c9ecf3;
+}
+
+.food-tracker-input-with-mic {
+  position: relative;
+}
+
+.food-tracker-mic-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: none;
+  background: none;
+  color: var(--teal, #0188b4);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+}
+
+.food-tracker-mic-btn.listening {
+  color: #dc2626;
+  animation: onboardingPulse 1s ease-in-out infinite;
+}
+
+.food-tracker-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 4px;
+}
+
+.food-tracker-next-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.food-tracker-form-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-bottom: 20px;
+}
+
+.food-tracker-option {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 4px;
+  border: 1.5px solid #e9edef;
+  border-radius: 12px;
+  background: #f8fbff;
+  color: #667781;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 600;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.food-tracker-option:hover {
+  border-color: var(--teal-soft, #78c0d7);
+}
+
+.food-tracker-option.active {
+  border-color: var(--teal, #0188b4);
+  background: var(--teal-light, #dff4f8);
+  color: var(--teal, #0188b4);
+}
+
+.food-tracker-completion-pill {
+  display: inline-block;
+  background: var(--teal, #0188b4);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  padding: 6px 16px;
+  border-radius: 8px;
+  margin-bottom: 10px;
+}
+
+.food-tracker-custom-time-btn {
+  width: 100%;
+  padding: 10px;
+  margin-top: 8px;
+  background: none;
+  border: 1.5px solid var(--teal, #0188b4);
+  border-radius: 10px;
+  color: var(--teal, #0188b4);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.food-tracker-cross-links {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin: 16px 0;
 }
