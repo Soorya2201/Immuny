@@ -10,6 +10,7 @@ import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { Duration } from 'aws-cdk-lib';
 import { Rule, Schedule } from 'aws-cdk-lib/aws-events';
 import { LambdaFunction } from 'aws-cdk-lib/aws-events-targets';
+import { AwsCustomResource, AwsCustomResourcePolicy, PhysicalResourceId } from 'aws-cdk-lib/custom-resources';
 
 const backend = defineBackend({
   auth,
@@ -66,6 +67,23 @@ const newsScraperStack = backend.fetchAllergyNews.stack;
 new Rule(newsScraperStack, 'FetchAllergyNewsSchedule', {
   schedule: Schedule.rate(Duration.days(2)),
   targets: [new LambdaFunction(newsScraperFn)],
+});
+
+// A rate() schedule only fires for the first time a full interval after
+// deploy — without this, the News tab would sit empty for 2 days after every
+// fresh deploy. Kick off one run immediately at deploy time; the rule above
+// takes over from there.
+new AwsCustomResource(newsScraperStack, 'InvokeFetchAllergyNewsOnDeploy', {
+  onCreate: {
+    service: 'Lambda',
+    action: 'invoke',
+    parameters: {
+      FunctionName: newsScraperFn.functionName,
+      InvocationType: 'Event', // fire-and-forget so this doesn't block deployment
+    },
+    physicalResourceId: PhysicalResourceId.of('InvokeFetchAllergyNewsOnDeploy'),
+  },
+  policy: AwsCustomResourcePolicy.fromSdkCalls({ resources: [newsScraperFn.functionArn] }),
 });
 
 export default backend;
