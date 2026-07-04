@@ -21,6 +21,7 @@
     "@aws-sdk/client-bedrock-runtime": "^3.1007.0",
     "@aws-sdk/client-dynamodb": "^3.1078.0",
     "@aws-sdk/client-sagemaker-runtime": "^3.989.0",
+    "@aws-sdk/client-textract": "^3.1079.0",
     "@gradio/client": "^2.0.4",
     "aws-amplify": "^6.16.2",
     "react": "^19.2.0",

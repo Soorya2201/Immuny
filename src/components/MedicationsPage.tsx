@@ -268,7 +268,7 @@ export default function MedicationsPage({ onNavigate }: MedicationsPageProps) {
               <div className="med-form-group">
                 <label>Unit</label>
                 <select value={unit} onChange={e => setUnit(e.target.value)}>
-                  {['mg', 'ml', 'mcg', 'puffs', 'sprays', 'drops', 'units'].map(o => <option key={o}>{o}</option>)}
+                  {['mg', 'ml', 'mcg', 'oz', 'puffs', 'sprays', 'drops', 'units'].map(o => <option key={o}>{o}</option>)}
                 </select>
               </div>
               <div className="med-form-group">

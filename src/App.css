@@ -4589,3 +4589,78 @@ body {
   gap: 8px;
   margin: 16px 0;
 }
+
+/* ── Label / nutrition-facts OCR scan control ── */
+.label-scan-control {
+  margin-bottom: 12px;
+}
+
+.label-scan-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px;
+  background: var(--teal-light, #dff4f8);
+  border: 1.5px dashed var(--teal-soft, #78c0d7);
+  border-radius: 10px;
+  color: var(--teal, #0188b4);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.label-scan-btn:hover:not(:disabled) {
+  background: #c9ecf3;
+}
+
+.label-scan-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.label-scan-error {
+  font-size: 12px;
+  color: #dc2626;
+  margin: 6px 0 0;
+}
+
+.ocr-extracted-box {
+  background: #f8fbff;
+  border: 1px solid #e2edf2;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin-bottom: 12px;
+}
+
+.ocr-extracted-box-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  display: block;
+  margin-bottom: 4px;
+}
+
+.ocr-extracted-box-text {
+  font-size: 12px;
+  color: #3b4a54;
+  line-height: 1.4;
+  white-space: pre-wrap;
+  max-height: 100px;
+  overflow-y: auto;
+}
+
+.ocr-contains-summary {
+  font-size: 13px;
+  font-weight: 600;
+  color: #b8860b;
+  background: #fff8e7;
+  border: 1px solid #f5e0a3;
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-bottom: 12px;
+}

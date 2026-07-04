@@ -18,8 +18,10 @@ import {
   UtensilsIcon,
 } from './icons';
 import StatusMessage from './StatusMessage';
+import LabelScanButton from './LabelScanButton';
 import { toLocalDatetimeInputValue } from '../utils/formatTime';
 import { COMMON_ALLERGENS } from '../utils/allergens';
+import { buildContainsSummary, detectAllergensInText } from '../utils/ocr';
 
 const client = generateClient<Schema>();
 
@@ -36,8 +38,9 @@ interface HealthEntry {
   [key: string]: any;
 }
 
-const SYMPTOM_LIST = ['Hives', 'Swelling', 'Itching', 'Nausea', 'Vomiting', 'Stomach Pain', 'Difficulty Breathing', 'Dizziness', 'Headache', 'Rash', 'Other'];
+const SYMPTOM_LIST = ['Hives', 'Swelling', 'Itching', 'Nausea', 'Vomiting', 'Stomach Pain', 'Difficulty Breathing', 'Dizziness', 'Fatigue', 'Headache', 'Rash', 'Other'];
 const MED_ROUTES = ['Oral', 'Topical', 'Injectable', 'Inhaled'];
+const MED_UNITS = ['mg', 'ml', 'mcg', 'oz', 'units', 'puffs'];
 const ICONS: Record<string, ComponentType> = { Exposure: UtensilsIcon, Symptom: ThermometerIcon, Medication: PillIcon };
 
 function SeverityBar({ value }: { value: number }) {
@@ -126,6 +129,11 @@ function EntryCard({ entry, onDelete, onEdit }: { entry: HealthEntry; onDelete: 
           <input type="range" min="1" max="10" value={editSeverity} onChange={e => setEditSeverity(Number(e.target.value))} style={{ width: '100%', accentColor: '#4A7BA7' }} />
         </div>
       )}
+      {entry.quantity && (
+        <div style={{ fontSize: 12, color: '#667781', marginTop: 2 }}>
+          Quantity: {entry.quantity}{entry.quantityUnit ? ` ${entry.quantityUnit}` : ''}
+        </div>
+      )}
       {entry.tags?.length > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
           {(typeof entry.tags === 'string' ? JSON.parse(entry.tags) : entry.tags).map((t: string, i: number) => (
@@ -133,10 +141,25 @@ function EntryCard({ entry, onDelete, onEdit }: { entry: HealthEntry; onDelete: 
           ))}
         </div>
       )}
-      {expanded && !editing && (entry.notes || entry.details || entry.reason || entry.bodyArea) && (
+      {entry.containsSummary && (
+        <div className="ocr-contains-summary" style={{ marginTop: 8, marginBottom: 0 }}>{entry.containsSummary}</div>
+      )}
+      {expanded && !editing && (entry.notes || entry.details || entry.reason || entry.bodyArea || entry.ocrIngredients || entry.ocrNutrition) && (
         <div style={{ marginTop: 8, padding: 10, background: '#F0F2F5', borderRadius: 6, fontSize: 13, color: '#3B4A54', borderTop: '1px solid #E9EDEF' }}>
           {entry.bodyArea && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPinIcon /> {entry.bodyArea}</div>}
           {entry.notes || entry.details || entry.reason}
+          {entry.ocrIngredients && (
+            <div style={{ marginTop: 6 }}>
+              <strong>Scanned ingredients:</strong>
+              <div style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{entry.ocrIngredients}</div>
+            </div>
+          )}
+          {entry.ocrNutrition && (
+            <div style={{ marginTop: 6 }}>
+              <strong>Scanned nutrition facts:</strong>
+              <div style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{entry.ocrNutrition}</div>
+            </div>
+          )}
         </div>
       )}
       {editing && (
@@ -176,6 +199,10 @@ export default function SymptomLoggerPage({ initialTab }: SymptomLoggerPageProps
   const [expTags, setExpTags] = useState('');
   const [expDetails, setExpDetails] = useState('');
   const [expTime, setExpTime] = useState(toLocalDatetimeInputValue(now));
+  const [expQuantity, setExpQuantity] = useState('');
+  const [expQuantityUnit, setExpQuantityUnit] = useState('grams');
+  const [expOcrIngredients, setExpOcrIngredients] = useState('');
+  const [expOcrNutrition, setExpOcrNutrition] = useState('');
 
   const [symName, setSymName] = useState('');
   const [symCustom, setSymCustom] = useState('');
@@ -214,6 +241,11 @@ export default function SymptomLoggerPage({ initialTab }: SymptomLoggerPageProps
             unit: d.unit ?? undefined,
             route: d.route ?? undefined,
             reason: d.reason ?? undefined,
+            quantity: d.quantity ?? undefined,
+            quantityUnit: d.quantityUnit ?? undefined,
+            ocrIngredients: d.ocrIngredients ?? undefined,
+            ocrNutrition: d.ocrNutrition ?? undefined,
+            containsSummary: d.containsSummary ?? undefined,
             time: d.time,
           }));
           setEntries(mapped);
@@ -242,6 +274,11 @@ export default function SymptomLoggerPage({ initialTab }: SymptomLoggerPageProps
         route: entry.route ?? undefined,
         reason: entry.reason ?? undefined,
         time: entry.time,
+        quantity: entry.quantity ?? undefined,
+        quantityUnit: entry.quantityUnit ?? undefined,
+        ocrIngredients: entry.ocrIngredients ?? undefined,
+        ocrNutrition: entry.ocrNutrition ?? undefined,
+        containsSummary: entry.containsSummary ?? undefined,
       });
       if (created) {
         const newEntry: HealthEntry = {
@@ -375,12 +412,65 @@ export default function SymptomLoggerPage({ initialTab }: SymptomLoggerPageProps
             </div>
             <input type="text" value={expTags} onChange={e => setExpTags(e.target.value)} placeholder="e.g., chicken, lettuce, peanuts" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} />
           </div>
+
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div className="form-group" style={{ flex: 2 }}><label>Quantity</label><input type="text" value={expQuantity} onChange={e => setExpQuantity(e.target.value)} placeholder="e.g., 250" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
+            <div className="form-group" style={{ flex: 1 }}><label>Unit</label><select value={expQuantityUnit} onChange={e => setExpQuantityUnit(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>{['grams', 'oz', 'ml', 'cups', 'pieces', 'tbsp'].map(o => <option key={o}>{o}</option>)}</select></div>
+          </div>
+
+          <div className="form-group">
+            <label>Scan the package (optional)</label>
+            <LabelScanButton
+              label="Scan Ingredients List (multiple photos OK)"
+              multiple
+              onExtracted={text => {
+                setExpOcrIngredients(prev => prev ? `${prev}\n---\n${text}` : text);
+                const detected = detectAllergensInText(text);
+                if (detected.length > 0) {
+                  const current = expTags.split(',').map(t => t.trim()).filter(Boolean);
+                  setExpTags([...new Set([...current, ...detected])].join(', '));
+                }
+              }}
+            />
+            <LabelScanButton
+              label="Scan Nutrition Facts"
+              onExtracted={text => setExpOcrNutrition(prev => prev ? `${prev}\n---\n${text}` : text)}
+            />
+            {expOcrIngredients && (
+              <div className="ocr-extracted-box">
+                <span className="ocr-extracted-box-label">Scanned ingredients</span>
+                <div className="ocr-extracted-box-text">{expOcrIngredients}</div>
+              </div>
+            )}
+            {expOcrNutrition && (
+              <div className="ocr-extracted-box">
+                <span className="ocr-extracted-box-label">Scanned nutrition facts</span>
+                <div className="ocr-extracted-box-text">{expOcrNutrition}</div>
+              </div>
+            )}
+            {buildContainsSummary(`${expOcrIngredients} ${expOcrNutrition}`) && (
+              <div className="ocr-contains-summary">{buildContainsSummary(`${expOcrIngredients} ${expOcrNutrition}`)}</div>
+            )}
+          </div>
+
           <div className="form-group"><label>Details</label><textarea value={expDetails} onChange={e => setExpDetails(e.target.value)} rows={2} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
           <div className="form-group"><label>Date & Time</label><input type="datetime-local" value={expTime} onChange={e => setExpTime(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
           <button className="save-btn" onClick={() => {
             if (!expName.trim()) return alert('Please enter a name.');
-            addEntry({ type: 'Exposure', subtype: expType, name: expName, tags: expTags.split(',').map(t => t.trim()).filter(Boolean), details: expDetails, time: expTime });
-            setExpName(''); setExpTags(''); setExpDetails('');
+            addEntry({
+              type: 'Exposure',
+              subtype: expType,
+              name: expName,
+              tags: expTags.split(',').map(t => t.trim()).filter(Boolean),
+              details: expDetails,
+              time: expTime,
+              quantity: expQuantity || undefined,
+              quantityUnit: expQuantity ? expQuantityUnit : undefined,
+              ocrIngredients: expOcrIngredients || undefined,
+              ocrNutrition: expOcrNutrition || undefined,
+              containsSummary: buildContainsSummary(`${expOcrIngredients} ${expOcrNutrition}`) || undefined,
+            });
+            setExpName(''); setExpTags(''); setExpDetails(''); setExpQuantity(''); setExpOcrIngredients(''); setExpOcrNutrition('');
           }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><CheckCircleIcon /> {expType === 'Meal' ? 'Log Food' : 'Log Exposure'}</button>
         </div>
       )}
@@ -415,7 +505,7 @@ export default function SymptomLoggerPage({ initialTab }: SymptomLoggerPageProps
           <div className="form-group"><label>Medication Name</label><input type="text" value={medName} onChange={e => setMedName(e.target.value)} placeholder="e.g., Benadryl, EpiPen" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
           <div style={{ display: 'flex', gap: 16 }}>
             <div className="form-group" style={{ flex: 1 }}><label>Dose</label><input type="text" value={medDose} onChange={e => setMedDose(e.target.value)} placeholder="25" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
-            <div className="form-group" style={{ flex: 1 }}><label>Unit</label><select value={medUnit} onChange={e => setMedUnit(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>{['mg', 'ml', 'mcg', 'units', 'puffs'].map(o => <option key={o}>{o}</option>)}</select></div>
+            <div className="form-group" style={{ flex: 1 }}><label>Unit</label><select value={medUnit} onChange={e => setMedUnit(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>{MED_UNITS.map(o => <option key={o}>{o}</option>)}</select></div>
             <div className="form-group" style={{ flex: 1 }}><label>Route</label><select value={medRoute} onChange={e => setMedRoute(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>{MED_ROUTES.map(o => <option key={o}>{o}</option>)}</select></div>
           </div>
           <div className="form-group"><label>Reason</label><input type="text" value={medReason} onChange={e => setMedReason(e.target.value)} placeholder="e.g., Allergic reaction" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>

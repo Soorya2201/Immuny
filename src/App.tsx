@@ -130,9 +130,9 @@ interface LoggingSession {
   awaitingConfirmation?: boolean;  // waiting for user to confirm before submit
 }
 
-const SYMPTOM_OPTIONS = ['Hives', 'Swelling', 'Itching', 'Nausea', 'Vomiting', 'Stomach Pain', 'Difficulty Breathing', 'Dizziness', 'Headache', 'Rash', 'Other'];
+const SYMPTOM_OPTIONS = ['Hives', 'Swelling', 'Itching', 'Nausea', 'Vomiting', 'Stomach Pain', 'Difficulty Breathing', 'Dizziness', 'Fatigue', 'Headache', 'Rash', 'Other'];
 const MED_ROUTE_OPTIONS = ['Oral', 'Topical', 'Injectable', 'Inhaled'];
-const MED_UNIT_OPTIONS = ['mg', 'ml', 'mcg', 'units', 'puffs'];
+const MED_UNIT_OPTIONS = ['mg', 'ml', 'mcg', 'oz', 'units', 'puffs'];
 const EXPOSURE_TYPE_OPTIONS = ['Meal', 'Product', 'Environmental', 'Other'];
 
 const FIELD_SCRIPTS: Record<LoggingEntryType, FieldDef[]> = {

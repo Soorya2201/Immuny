@@ -6,6 +6,7 @@ import { askNovaMicro } from './functions/ask-nova-micro/resource';
 import { logConversationEvent } from './functions/log-conversation-event/resource';
 import { getConversationLogs } from './functions/get-conversation-logs/resource';
 import { fetchAllergyNews } from './functions/fetch-allergy-news/resource';
+import { extractLabelText } from './functions/extract-label-text/resource';
 import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { Duration } from 'aws-cdk-lib';
 import { Rule, Schedule } from 'aws-cdk-lib/aws-events';
@@ -20,6 +21,7 @@ const backend = defineBackend({
   logConversationEvent,
   getConversationLogs,
   fetchAllergyNews,
+  extractLabelText,
 });
 
 // ── MedGemma: allow SageMaker invocations (existing) ───────────────────────
@@ -54,6 +56,15 @@ backend.getConversationLogs.resources.lambda.addToRolePolicy(
   new PolicyStatement({
     effect: Effect.ALLOW,
     actions: ['dynamodb:Query'],
+    resources: ['*'],
+  }),
+);
+
+// ── OCR: allow Textract document text detection ──────────────────────────────
+backend.extractLabelText.resources.lambda.addToRolePolicy(
+  new PolicyStatement({
+    effect: Effect.ALLOW,
+    actions: ['textract:DetectDocumentText'],
     resources: ['*'],
   }),
 );

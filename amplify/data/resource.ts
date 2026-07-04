@@ -4,6 +4,7 @@ import { askNovaMicro } from '../functions/ask-nova-micro/resource';
 import { logConversationEvent } from '../functions/log-conversation-event/resource';
 import { getConversationLogs } from '../functions/get-conversation-logs/resource';
 import { fetchAllergyNews } from '../functions/fetch-allergy-news/resource';
+import { extractLabelText } from '../functions/extract-label-text/resource';
 
 const schema = a.schema({
   // ── User profile ────────────────────────────────────────────────────────────
@@ -33,6 +34,11 @@ const schema = a.schema({
     route: a.string(),
     reason: a.string(),
     time: a.string().required(),
+    quantity: a.string(),              // e.g. '250' — paired with quantityUnit
+    quantityUnit: a.string(),          // 'grams' | 'oz' | 'ml' | 'pieces' | 'cups' | ...
+    ocrIngredients: a.string(),        // raw text extracted from ingredients-label photo(s)
+    ocrNutrition: a.string(),          // raw text extracted from nutrition-facts photo
+    containsSummary: a.string(),       // "This food contains: peanuts, milk" derived from OCR text
   }).authorization(allow => [allow.owner()]),
 
   // ── Medications (schedule) ────────────────────────────────────────────────
@@ -155,6 +161,14 @@ const schema = a.schema({
     .returns(a.string())
     .authorization((allow) => [allow.authenticated()])
     .handler(a.handler.function(getConversationLogs)),
+
+  // ── OCR label/nutrition-facts text extraction (AWS Textract) ─────────────
+  // images: JSON string array of base64-encoded image bytes (no data: prefix)
+  extractLabelText: a.query()
+    .arguments({ images: a.string() })
+    .returns(a.string())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(extractLabelText)),
 }).authorization(allow => [
   // Grants fetchAllergyNews IAM access to the Data API (used to write/prune NewsArticle rows).
   allow.resource(fetchAllergyNews),

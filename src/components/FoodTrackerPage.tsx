@@ -4,6 +4,7 @@ import type { Schema } from '../../amplify/data/resource';
 import type { Page } from '../types';
 import { toLocalDateInputValue } from '../utils/formatTime';
 import { COMMON_ALLERGENS } from '../utils/allergens';
+import { buildContainsSummary, detectAllergensInText } from '../utils/ocr';
 import {
   CameraIcon,
   CheckCircleIcon,
@@ -13,6 +14,7 @@ import {
   ThermometerIcon,
 } from './icons';
 import StatusMessage from './StatusMessage';
+import LabelScanButton from './LabelScanButton';
 
 const client = generateClient<Schema>();
 
@@ -61,6 +63,10 @@ export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
 
   const [foodForm, setFoodForm] = useState<(typeof FOOD_FORMS)[number]>('Solid');
   const [amountServed, setAmountServed] = useState('');
+  const [quantity, setQuantity] = useState('');
+  const [quantityUnit, setQuantityUnit] = useState('grams');
+  const [ocrIngredients, setOcrIngredients] = useState('');
+  const [ocrNutrition, setOcrNutrition] = useState('');
   const [completion, setCompletion] = useState(50);
   const [timeOfDay, setTimeOfDay] = useState<(typeof TIME_OPTIONS)[number]>('Morning');
   const [customTime, setCustomTime] = useState('');
@@ -131,6 +137,11 @@ export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
         tags: JSON.stringify(allTags),
         details,
         time: `${date}T${new Date().toTimeString().slice(0, 5)}`,
+        quantity: quantity || undefined,
+        quantityUnit: quantity ? quantityUnit : undefined,
+        ocrIngredients: ocrIngredients || undefined,
+        ocrNutrition: ocrNutrition || undefined,
+        containsSummary: buildContainsSummary(`${ocrIngredients} ${ocrNutrition}`) || undefined,
       });
 
       setSavedMsg({ type: 'success', text: 'Food logged!' });
@@ -214,6 +225,40 @@ export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
             style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, marginTop: 8 }}
           />
 
+          <div className="form-group" style={{ marginTop: 16 }}>
+            <label>Scan the package (optional)</label>
+            <LabelScanButton
+              label="Scan Ingredients List (multiple photos OK)"
+              multiple
+              onExtracted={text => {
+                setOcrIngredients(prev => prev ? `${prev}\n---\n${text}` : text);
+                const detected = detectAllergensInText(text);
+                if (detected.length > 0) {
+                  setTags(prev => [...new Set([...prev, ...detected])]);
+                }
+              }}
+            />
+            <LabelScanButton
+              label="Scan Nutrition Facts"
+              onExtracted={text => setOcrNutrition(prev => prev ? `${prev}\n---\n${text}` : text)}
+            />
+            {ocrIngredients && (
+              <div className="ocr-extracted-box">
+                <span className="ocr-extracted-box-label">Scanned ingredients</span>
+                <div className="ocr-extracted-box-text">{ocrIngredients}</div>
+              </div>
+            )}
+            {ocrNutrition && (
+              <div className="ocr-extracted-box">
+                <span className="ocr-extracted-box-label">Scanned nutrition facts</span>
+                <div className="ocr-extracted-box-text">{ocrNutrition}</div>
+              </div>
+            )}
+            {buildContainsSummary(`${ocrIngredients} ${ocrNutrition}`) && (
+              <div className="ocr-contains-summary">{buildContainsSummary(`${ocrIngredients} ${ocrNutrition}`)}</div>
+            )}
+          </div>
+
           <button className="save-btn food-tracker-next-btn" onClick={goNext} disabled={!foodText.trim()}>
             Next
           </button>
@@ -236,6 +281,20 @@ export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
             <label>Amount Served</label>
             <input type="text" value={amountServed} onChange={e => setAmountServed(e.target.value)} placeholder="e.g., 1 cup, 2 pieces"
               style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} />
+          </div>
+
+          <div style={{ display: 'flex', gap: 16 }}>
+            <div className="form-group" style={{ flex: 2 }}>
+              <label>Quantity</label>
+              <input type="text" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="e.g., 250"
+                style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} />
+            </div>
+            <div className="form-group" style={{ flex: 1 }}>
+              <label>Unit</label>
+              <select value={quantityUnit} onChange={e => setQuantityUnit(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>
+                {['grams', 'oz', 'ml', 'cups', 'pieces', 'tbsp'].map(o => <option key={o}>{o}</option>)}
+              </select>
+            </div>
           </div>
 
           <div className="form-group">
