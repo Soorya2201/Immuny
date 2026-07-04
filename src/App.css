@@ -2107,6 +2107,16 @@ body {
   filter: brightness(1.05);
 }
 
+.insights-disclaimer {
+  margin: 14px 0 4px;
+  padding: 0 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: #8a97a0;
+  text-align: center;
+  max-width: 420px;
+}
+
 /* ── Resource Hub Page ── */
 .resource-hub-screen {
   flex: 1;

@@ -37,6 +37,19 @@ const NO_DATA_CARDS: InsightCard[] = [
   },
 ];
 
+// Below this many combined logs, there isn't enough signal for a real pattern —
+// asking the model anyway tends to produce generic, near-identical boilerplate
+// for every low-data user. Say so plainly instead.
+const MIN_LOGS_FOR_INSIGHTS = 5;
+
+const LOW_DATA_CARDS: InsightCard[] = [
+  {
+    emoji: '📋',
+    label: 'Almost there',
+    text: "There's not quite enough logged yet for Bea to spot a real pattern. Keep logging symptoms and exposures — personalized insights kick in once you've got a few more entries.",
+  },
+];
+
 interface InsightsPageProps {
   onNavigate: (page: Page) => void;
 }
@@ -79,6 +92,11 @@ export default function InsightsPage({ onNavigate }: InsightsPageProps) {
 
         if (summary === 'NO_DATA') {
           setState({ cards: NO_DATA_CARDS, raw: '', hasData: false, chartData: [] });
+          return;
+        }
+
+        if (safeEntries.length + safeTests.length < MIN_LOGS_FOR_INSIGHTS) {
+          setState({ cards: LOW_DATA_CARDS, raw: '', hasData: true, chartData: aggregatedChart });
           return;
         }
 
@@ -187,6 +205,13 @@ export default function InsightsPage({ onNavigate }: InsightsPageProps) {
             Chat with an Allergist
           </button>
         </div>
+
+        {!loading && !error && (
+          <p className="insights-disclaimer">
+            Bea's insights are generated from your own logged data and can be wrong or incomplete.
+            This isn't medical advice or a diagnosis — always check with a healthcare provider.
+          </p>
+        )}
       </div>
     </div>
   );
