@@ -41,6 +41,7 @@ interface FamilyMemberData {
   name: string;
   relationship: string;
   age?: number;
+  ageMonths?: number;
   knownAllergies?: string;
   medicalConditions?: string;
   medications?: string;
@@ -203,6 +204,7 @@ export default function ProfilePage() {
             name: m.name,
             relationship: m.relationship,
             age: m.age ?? undefined,
+            ageMonths: m.ageMonths ?? undefined,
             knownAllergies: m.knownAllergies ?? undefined,
             medicalConditions: m.medicalConditions ?? undefined,
             medications: m.medications ?? undefined,
@@ -498,7 +500,11 @@ export default function ProfilePage() {
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
                       <span style={{ fontWeight: 700, fontSize: 15, color: '#111B21' }}>{fm.name}</span>
                       <span className="profile-activity-type" style={{ background: '#E8F4FD', color: '#4A7BA7' }}>{fm.relationship}</span>
-                      {fm.age && <span style={{ fontSize: 12, color: '#667781' }}>Age {fm.age}</span>}
+                      {fm.ageMonths ? (
+                        <span style={{ fontSize: 12, color: '#667781' }}>Age {fm.ageMonths} mo</span>
+                      ) : fm.age ? (
+                        <span style={{ fontSize: 12, color: '#667781' }}>Age {fm.age}</span>
+                      ) : null}
                     </div>
                     {fm.knownAllergies && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, marginTop: 4 }}>

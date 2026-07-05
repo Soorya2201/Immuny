@@ -4236,6 +4236,24 @@ body {
   font-weight: 600;
 }
 
+.onboarding-field-optional {
+  font-weight: 500;
+  color: #94a3b8;
+  text-transform: none;
+}
+
+.onboarding-age-hint {
+  display: inline-flex;
+  align-items: center;
+  margin-top: 8px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  background: var(--teal-light, #dff4f8);
+  color: var(--teal, #0188b4);
+  font-size: 12px;
+  font-weight: 700;
+}
+
 /* ── Chip selectors ── */
 .onboarding-chip-row {
   display: flex;
@@ -4267,6 +4285,24 @@ body {
   background: var(--teal, #0188b4);
   border-color: var(--teal, #0188b4);
   color: #fff;
+}
+
+.onboarding-chip--muted {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-style: dashed;
+  color: #667781;
+}
+
+.onboarding-chip--muted.active {
+  border-style: solid;
+}
+
+.onboarding-field input:disabled,
+.onboarding-field textarea:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* ── Buttons ── */

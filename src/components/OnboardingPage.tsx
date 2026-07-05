@@ -9,6 +9,7 @@ import {
   ChatBubbleIcon,
   CheckCircleIcon,
   ClipboardIcon,
+  HelpCircleIcon,
   SparkleIcon,
   UsersIcon,
   WaveformIcon,
@@ -20,6 +21,7 @@ const client = generateClient<Schema>();
 const CAREGIVER_RELATIONSHIPS = ['Mother', 'Father', 'Guardian', 'Grandparent', 'Other'];
 const CONDITION_CHIPS = ['Asthma', 'Eczema', 'Seasonal Allergies', 'None of these'];
 const MEDICATION_CHIPS = ['EpiPen', 'Antihistamine', 'Inhaler', 'None of these'];
+const NOT_SURE_ALLERGY = 'Not sure yet';
 const TOTAL_STEPS = 6;
 
 const BackArrowIcon = () => (
@@ -29,6 +31,33 @@ const BackArrowIcon = () => (
 );
 
 const EmailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// Formats digits as the user types into "(555) 012-3456" (US 10-digit format).
+function formatPhone(value: string): string {
+  const digits = value.replace(/\D/g, '').slice(0, 10);
+  if (digits.length <= 3) return digits;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+}
+
+const todayIso = () => new Date().toISOString().slice(0, 10);
+
+// Converts a birthdate into whole months and years elapsed as of today.
+function ageFromDob(dobStr: string): { years: number; totalMonths: number } {
+  const dob = new Date(`${dobStr}T00:00:00`);
+  const now = new Date();
+  let totalMonths = (now.getFullYear() - dob.getFullYear()) * 12 + (now.getMonth() - dob.getMonth());
+  if (now.getDate() < dob.getDate()) totalMonths -= 1;
+  totalMonths = Math.max(0, totalMonths);
+  return { years: Math.floor(totalMonths / 12), totalMonths };
+}
+
+function formatAgeFromMonths(totalMonths: number): string {
+  if (totalMonths < 1) return 'Newborn';
+  if (totalMonths < 12) return `${totalMonths} month${totalMonths === 1 ? '' : 's'} old`;
+  const years = Math.floor(totalMonths / 12);
+  return `${years} year${years === 1 ? '' : 's'} old`;
+}
 
 interface OnboardingPageProps {
   existingProfileId: string | null;
@@ -57,12 +86,16 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
   const [emailTouched, setEmailTouched] = useState(false);
 
   const [childName, setChildName] = useState('');
+  const [ageMode, setAgeMode] = useState<'age' | 'dob'>('age');
+  const [ageUnit, setAgeUnit] = useState<'years' | 'months'>('years');
   const [childAge, setChildAge] = useState('');
+  const [childDob, setChildDob] = useState('');
 
   const [conditions, setConditions] = useState<string[]>([]);
   const [conditionsOther, setConditionsOther] = useState('');
   const [medications, setMedications] = useState<string[]>([]);
   const [medicationsOther, setMedicationsOther] = useState('');
+  const [parentAllergyHistory, setParentAllergyHistory] = useState('');
 
   const [allergyChips, setAllergyChips] = useState<string[]>([]);
   const [allergyOther, setAllergyOther] = useState('');
@@ -108,6 +141,7 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
         caregiverRelationship: relationship || undefined,
         contactEmail: contactEmail.trim() || undefined,
         contactPhone: contactPhone.trim() || undefined,
+        medicalHistory: parentAllergyHistory.trim() || undefined,
         onboardingComplete: true,
       };
       if (existingProfileId) {
@@ -129,10 +163,24 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
           ...medications.filter(c => c !== 'None of these'),
           ...medicationsOther.split(',').map(s => s.trim()).filter(Boolean),
         ];
+
+        let ageFields: { age?: number; ageMonths?: number; dateOfBirth?: string } = {};
+        if (ageMode === 'dob' && childDob) {
+          const { years, totalMonths } = ageFromDob(childDob);
+          ageFields = totalMonths < 12
+            ? { age: 0, ageMonths: totalMonths, dateOfBirth: childDob }
+            : { age: years, dateOfBirth: childDob };
+        } else if (ageMode === 'age' && childAge.trim()) {
+          const n = parseInt(childAge, 10);
+          if (Number.isFinite(n) && n > 0) {
+            ageFields = ageUnit === 'months' ? { age: 0, ageMonths: Math.min(11, n) } : { age: n };
+          }
+        }
+
         await client.models.FamilyMember.create({
           name: childName.trim(),
           relationship: 'Child',
-          age: childAge ? parseInt(childAge) : undefined,
+          ...ageFields,
           knownAllergies: allergyList.join(', ') || undefined,
           medicalConditions: conditionList.join(', ') || undefined,
           medications: medicationList.join(', ') || undefined,
@@ -227,8 +275,9 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
             </div>
             <div className="onboarding-field">
               <label>Contact Phone</label>
-              <input type="tel" value={contactPhone} onChange={e => setContactPhone(e.target.value)}
-                placeholder="555-0188" onKeyDown={e => e.key === 'Enter' && goNext()} />
+              <input type="tel" inputMode="tel" value={contactPhone}
+                onChange={e => setContactPhone(formatPhone(e.target.value))}
+                placeholder="(555) 012-3456" onKeyDown={e => e.key === 'Enter' && goNext()} />
             </div>
           </div>
         )}
@@ -247,8 +296,43 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
             </div>
             <div className="onboarding-field">
               <label>Age</label>
-              <input type="number" min={0} max={25} value={childAge} onChange={e => setChildAge(e.target.value)}
-                placeholder="8" onKeyDown={e => e.key === 'Enter' && goNext()} />
+              <div className="onboarding-chip-row" style={{ marginBottom: 10 }}>
+                <button type="button" className={`onboarding-chip${ageMode === 'age' ? ' active' : ''}`}
+                  onClick={() => setAgeMode('age')}>
+                  Age
+                </button>
+                <button type="button" className={`onboarding-chip${ageMode === 'dob' ? ' active' : ''}`}
+                  onClick={() => setAgeMode('dob')}>
+                  Date of birth
+                </button>
+              </div>
+
+              {ageMode === 'age' ? (
+                <>
+                  <div className="onboarding-chip-row" style={{ marginBottom: 10 }}>
+                    <button type="button" className={`onboarding-chip${ageUnit === 'years' ? ' active' : ''}`}
+                      onClick={() => { setAgeUnit('years'); setChildAge(''); }}>
+                      Years
+                    </button>
+                    <button type="button" className={`onboarding-chip${ageUnit === 'months' ? ' active' : ''}`}
+                      onClick={() => { setAgeUnit('months'); setChildAge(''); }}>
+                      Months (under 1)
+                    </button>
+                  </div>
+                  <input type="number" min={1} max={ageUnit === 'months' ? 11 : 25} value={childAge}
+                    onChange={e => setChildAge(e.target.value)}
+                    placeholder={ageUnit === 'months' ? 'e.g. 6' : 'e.g. 8'}
+                    onKeyDown={e => e.key === 'Enter' && goNext()} />
+                </>
+              ) : (
+                <>
+                  <input type="date" value={childDob} max={todayIso()}
+                    onChange={e => setChildDob(e.target.value)} />
+                  {childDob && (
+                    <span className="onboarding-age-hint">{formatAgeFromMonths(ageFromDob(childDob).totalMonths)}</span>
+                  )}
+                </>
+              )}
             </div>
           </div>
         )}
@@ -257,7 +341,9 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
         {step === 4 && (
           <div className="onboarding-form-step">
             <img src={beaImg} alt="Bea" className="onboarding-bea-small" />
-            <h2 className="onboarding-title onboarding-title--form">Medical background</h2>
+            <h2 className="onboarding-title onboarding-title--form">
+              {childName.trim() ? `${childName.trim()}'s medical background` : "Your child's medical background"}
+            </h2>
             <p className="onboarding-subtitle onboarding-subtitle--form">
               Optional, but it helps Bea spot patterns sooner.
             </p>
@@ -289,6 +375,12 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
               <input type="text" value={medicationsOther} onChange={e => setMedicationsOther(e.target.value)}
                 placeholder="Other medications (comma-separated)" style={{ marginTop: 8 }} />
             </div>
+
+            <div className="onboarding-field">
+              <label>Parent/caregiver allergy history <span className="onboarding-field-optional">(optional)</span></label>
+              <textarea value={parentAllergyHistory} onChange={e => setParentAllergyHistory(e.target.value)} rows={2}
+                placeholder="e.g. Dad has a peanut allergy, Mom has asthma" />
+            </div>
           </div>
         )}
 
@@ -304,13 +396,19 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
             <div className="onboarding-chip-row onboarding-chip-row--wrap">
               {COMMON_ALLERGENS.map(a => (
                 <button key={a} type="button" className={`onboarding-chip${allergyChips.includes(a) ? ' active' : ''}`}
-                  onClick={() => setAllergyChips(prev => prev.includes(a) ? prev.filter(c => c !== a) : [...prev, a])}>
+                  onClick={() => setAllergyChips(prev => toggleChip(prev, a, NOT_SURE_ALLERGY))}>
                   {a}
                 </button>
               ))}
+              <button type="button"
+                className={`onboarding-chip onboarding-chip--muted${allergyChips.includes(NOT_SURE_ALLERGY) ? ' active' : ''}`}
+                onClick={() => setAllergyChips(prev => toggleChip(prev, NOT_SURE_ALLERGY, NOT_SURE_ALLERGY))}>
+                <HelpCircleIcon /> Not sure yet
+              </button>
             </div>
             <div className="onboarding-field">
               <input type="text" value={allergyOther} onChange={e => setAllergyOther(e.target.value)}
+                disabled={allergyChips.includes(NOT_SURE_ALLERGY)}
                 placeholder="Other allergies (comma-separated)" />
             </div>
             <div className="onboarding-field">

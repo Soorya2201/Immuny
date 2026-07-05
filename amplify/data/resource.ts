@@ -81,7 +81,9 @@ const schema = a.schema({
   FamilyMember: a.model({
     name: a.string().required(),
     relationship: a.string().required(),  // e.g. 'Spouse', 'Child', 'Parent', 'Sibling'
-    age: a.integer(),
+    age: a.integer(),                     // whole years; 0 when under 1 (see ageMonths)
+    ageMonths: a.integer(),               // set only when the member is under 1 year old
+    dateOfBirth: a.string(),              // ISO date 'YYYY-MM-DD', optional alternate to age/ageMonths
     knownAllergies: a.string(),           // comma-separated or free text
     medicalConditions: a.string(),
     medications: a.string(),
