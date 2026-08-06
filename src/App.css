@@ -3978,6 +3978,29 @@ body {
   color: #3b4a54;
 }
 
+.voice-cofactor-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.voice-cofactor-chip {
+  border: 1px solid #e2e8ef;
+  background: #fff;
+  border-radius: 999px;
+  padding: 6px 11px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #667781;
+  cursor: pointer;
+}
+
+.voice-cofactor-chip--on {
+  background: var(--teal, #0188b4);
+  border-color: var(--teal, #0188b4);
+  color: #fff;
+}
+
 .voice-review-checkline input {
   width: 17px;
   height: 17px;

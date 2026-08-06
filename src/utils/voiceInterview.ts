@@ -28,13 +28,31 @@ export interface EntryDraft {
   unit?: string;
   reason?: string;
   subtype?: string;
+
+  // ── Clinical fields (see amplify/data/resource.ts) ──────────────────────────
+  /** Which patient this entry is about; undefined = the profile owner. */
+  familyMemberId?: string;
+  /** Name of the medication taken for this symptom; '' means "nothing". */
+  treatment?: string;
+  cofactors?: string[];
+  epinephrineAvailable?: 'yes' | 'no';
+  emergencyCare?: EmergencyCare;
+  resolvedAt?: string;
+  resolvedPrecision?: 'exact' | 'confirmed-by';
 }
+
+export type EmergencyCare = 'none' | 'urgent-care' | 'emergency-room' | 'ambulance';
 
 export type SlotKey =
   | 'name'
   | 'bodyArea'
   | 'severity'
   | 'onset'
+  | 'resolved'
+  | 'treatment'
+  | 'epinephrine'
+  | 'emergencyCare'
+  | 'cofactors'
   | 'dose'
   | 'reason'
   | 'notes'
@@ -46,9 +64,14 @@ export interface Slot {
   ask: (d: EntryDraft) => string;
   /** Tappable answers, for noisy rooms or when speaking isn't practical. */
   chips?: (d: EntryDraft) => string[];
+  /**
+   * Patterns a Nova rewrite of `ask` must preserve (see utils/beaVoice.ts).
+   * Without these a rephrased severity question could quietly drop the scale.
+   */
+  keep?: RegExp[];
   /** Optional slots can be answered with "skip" / "nothing". */
   optional?: boolean;
-  applies: (d: EntryDraft) => boolean;
+  applies: (d: EntryDraft, now: Date) => boolean;
   isFilled: (d: EntryDraft) => boolean;
 }
 
@@ -65,6 +88,66 @@ const SYSTEMIC_RE = /nausea|vomit|dizz|faint|fatigue|breath|wheez|cough|fever|ch
 
 export function needsBodyArea(name: string): boolean {
   return LOCALIZED_RE.test(name) && !SYSTEMIC_RE.test(name);
+}
+
+// Airway, circulatory and swallowing symptoms are the ones an allergist treats
+// as red flags regardless of how the patient rated them.
+const RED_FLAG_RE = /breath|wheez|throat|tongue|anaphyla|faint|passed out|chest|blood pressure|swallow|stridor|collapse/i;
+
+/**
+ * Gates the epinephrine and emergency-care questions. Asking them on every
+ * mild hive log would train people to tap through; asking them on a severe or
+ * airway episode is exactly what the visit summary needs.
+ */
+export function isSignificantEpisode(d: EntryDraft): boolean {
+  if (d.type !== 'Symptom') return false;
+  if (typeof d.severity === 'number' && d.severity >= 8) return true;   // 4–5 on the spoken 1–5 scale
+  return RED_FLAG_RE.test(d.name) || RED_FLAG_RE.test(d.bodyArea ?? '');
+}
+
+export const COFACTOR_OPTIONS = [
+  'Exercise', 'Illness', 'Alcohol', 'NSAIDs', 'Poor sleep', 'Stress', 'High pollen',
+];
+
+const COFACTOR_PATTERNS: { re: RegExp; label: string }[] = [
+  { re: /\b(exercis|workout|worked out|running|ran|gym|sport|training|cycling|swimming)/i, label: 'Exercise' },
+  { re: /\b(ill|illness|sick|cold|flu|fever|infection|virus)/i, label: 'Illness' },
+  { re: /\b(alcohol|drink(ing)?|beer|wine|cocktail)/i, label: 'Alcohol' },
+  { re: /\b(nsaid|ibuprofen|advil|aspirin|naproxen|painkiller|paracetamol|tylenol)/i, label: 'NSAIDs' },
+  { re: /\b(poor sleep|no sleep|tired|exhaust|didn'?t sleep|slept badly|insomnia)/i, label: 'Poor sleep' },
+  { re: /\b(stress|anxious|anxiety|upset|overwhelmed)/i, label: 'Stress' },
+  { re: /\b(pollen|hay ?fever|high count|allergy season|grass|ragweed)/i, label: 'High pollen' },
+];
+
+/** Free speech or tapped chips → the canonical cofactor labels. */
+export function parseCofactors(text: string): string[] {
+  const found = COFACTOR_PATTERNS.filter(({ re }) => re.test(text)).map(({ label }) => label);
+  return [...new Set(found)];
+}
+
+const EMERGENCY_PATTERNS: { re: RegExp; value: EmergencyCare }[] = [
+  { re: /\b(ambulance|911|999|paramedic|emergency services)\b/i, value: 'ambulance' },
+  { re: /\b(emergency room|emergency department|\ber\b|\ba&e\b|hospital)\b/i, value: 'emergency-room' },
+  { re: /\b(urgent care|walk[- ]?in|clinic|doctor'?s office|gp)\b/i, value: 'urgent-care' },
+];
+
+/** null → couldn't tell (a bare "yes" needs a follow-up: which one?). */
+export function parseEmergencyCare(text: string): EmergencyCare | null {
+  for (const { re, value } of EMERGENCY_PATTERNS) {
+    if (re.test(text)) return value;
+  }
+  const yn = parseYesNo(text);
+  if (yn === false) return 'none';
+  return null;
+}
+
+/** "I took some Benadryl" → "Benadryl"; "nothing" → '' (asked and answered). */
+export function parseTreatment(text: string): string {
+  if (isSkip(text) || /\b(nothing|no medication|didn'?t take|haven'?t taken|none)\b/i.test(text)) return '';
+  const m = text.match(/\b(?:took|taken|used|had|applied|gave|given)\s+(?:some\s+|a\s+|an\s+|the\s+|my\s+)?([\w\s'-]{2,40})/i);
+  const raw = (m?.[1] ?? text).replace(/\b(for|because|to help|about|around|at|earlier|just now)\b.*$/i, '').trim();
+  const cleaned = stripFiller(raw);
+  return cleaned ? titleCase(cleaned.slice(0, 40)) : '';
 }
 
 // ─── Number / word helpers ────────────────────────────────────────────────────
@@ -151,6 +234,10 @@ export function toFiveScale(severity: number): number {
 
 // ─── Onset ────────────────────────────────────────────────────────────────────
 const WEEKDAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+
+/** Marks an answer as actually naming a time, rather than just confirming. */
+export const EXPLICIT_TIME_RE =
+  /\b(ago|this morning|this afternoon|this evening|tonight|last night|yesterday|overnight|o'?clock|breakfast|lunch|dinner|monday|tuesday|wednesday|thursday|friday|saturday|sunday)\b|\b(at|around|about|since)\s*\d|\d{1,2}:\d{2}|\d\s*(am|pm)/i;
 
 function atTime(now: Date, dayOffset: number, hours: number, minutes = 0): Date {
   const d = new Date(now);
@@ -343,6 +430,7 @@ const SYMPTOM_SLOTS: Slot[] = [
   {
     key: 'bodyArea',
     ask: d => `Where on your body is the ${subject(d)}?`,
+    keep: [/where|whereabouts/i],
     chips: () => ['Face', 'Arms', 'Hands', 'Legs', 'Torso', 'All over'],
     applies: d => needsBodyArea(d.name),
     isFilled: d => !!d.bodyArea,
@@ -350,6 +438,7 @@ const SYMPTOM_SLOTS: Slot[] = [
   {
     key: 'severity',
     ask: d => `On a scale of 1 to 5, how bad is the ${subject(d)} right now?`,
+    keep: [/\b1\s*(?:to|-|–)\s*5\b|one to five/i],
     chips: () => ['1', '2', '3', '4', '5'],
     applies: () => true,
     isFilled: d => typeof d.severity === 'number',
@@ -357,13 +446,59 @@ const SYMPTOM_SLOTS: Slot[] = [
   {
     key: 'onset',
     ask: d => `When did the ${subject(d)} start?`,
+    keep: [/when/i],
     chips: () => ['Just now', 'An hour ago', 'This morning', 'Last night', 'Yesterday'],
     applies: () => true,
     isFilled: d => !!d.startedAt,
   },
   {
+    // Only worth asking once enough time has passed for it to have settled.
+    key: 'resolved',
+    ask: d => `Has the ${subject(d)} settled down yet, and if so roughly when?`,
+    keep: [/stop|settle|gone|clear|over|better/i],
+    chips: () => ['Still going', 'Stopped an hour ago', 'Stopped this morning'],
+    applies: (d, now) =>
+      !!d.startedAt && now.getTime() - new Date(d.startedAt).getTime() > 2 * 3_600_000,
+    isFilled: d => !!d.resolvedAt || d.resolvedPrecision === 'exact',
+  },
+  {
+    key: 'treatment',
+    ask: d => `Did you take anything for the ${subject(d)}?`,
+    keep: [/take|took|taken|anything/i],
+    chips: () => ['Nothing', 'Antihistamine', 'Cetirizine', 'Benadryl', 'Inhaler'],
+    optional: true,
+    applies: () => true,
+    isFilled: d => d.treatment !== undefined,
+  },
+  {
+    // Red-flag episodes only — see isSignificantEpisode.
+    key: 'epinephrine',
+    ask: () => 'Did you have your epinephrine with you?',
+    keep: [/epinephrine|epi\b|auto-?injector/i],
+    chips: () => ['Yes, with me', 'No, not with me'],
+    applies: d => isSignificantEpisode(d),
+    isFilled: d => d.epinephrineAvailable !== undefined,
+  },
+  {
+    key: 'emergencyCare',
+    ask: () => 'Did you need urgent care, the emergency room, or an ambulance for this?',
+    keep: [/urgent care/i, /emergency/i, /ambulance/i],
+    chips: () => ['No', 'Urgent care', 'Emergency room', 'Ambulance'],
+    applies: d => isSignificantEpisode(d),
+    isFilled: d => d.emergencyCare !== undefined,
+  },
+  {
+    key: 'cofactors',
+    ask: () => 'Was anything else going on — exercise, illness, alcohol, painkillers, poor sleep, stress, or high pollen?',
+    keep: [/exercise/i, /illness|sick/i, /pollen/i],
+    chips: () => [...COFACTOR_OPTIONS, 'None of these'],
+    optional: true,
+    applies: () => true,
+    isFilled: d => d.cofactors !== undefined,
+  },
+  {
     key: 'notes',
-    ask: d => `Anything else I should note about the ${subject(d)} — what you ate, anything you took for it?`,
+    ask: d => `Anything else I should note about the ${subject(d)}?`,
     chips: () => ['Nothing else'],
     optional: true,
     applies: () => true,
@@ -372,8 +507,9 @@ const SYMPTOM_SLOTS: Slot[] = [
   {
     key: 'followUp',
     ask: d => `Want me to check in tomorrow to see if the ${subject(d)} has cleared up?`,
+    keep: [/check in|check back/i, /tomorrow/i],
     chips: () => ['Yes, check in', 'No thanks'],
-    applies: () => true,
+    applies: d => !d.resolvedAt,   // pointless once they've told us it's over
     isFilled: d => typeof d.followUp === 'boolean',
   },
 ];
@@ -461,14 +597,14 @@ export const SLOTS: Record<EntryType, Slot[]> = {
  * sentence already covered is skipped, so "I have a rash on my arm, started
  * this morning" only gets asked for severity, notes and the check-in.
  */
-export function nextSlot(draft: EntryDraft, asked: SlotKey[] = []): Slot | null {
+export function nextSlot(draft: EntryDraft, asked: SlotKey[] = [], now: Date = new Date()): Slot | null {
   const slots = SLOTS[draft.type] ?? [];
-  return slots.find(s => s.applies(draft) && !s.isFilled(draft) && !asked.includes(s.key)) ?? null;
+  return slots.find(s => s.applies(draft, now) && !s.isFilled(draft) && !asked.includes(s.key)) ?? null;
 }
 
-export function remainingCount(draft: EntryDraft, asked: SlotKey[] = []): number {
+export function remainingCount(draft: EntryDraft, asked: SlotKey[] = [], now: Date = new Date()): number {
   const slots = SLOTS[draft.type] ?? [];
-  return slots.filter(s => s.applies(draft) && !s.isFilled(draft) && !asked.includes(s.key)).length;
+  return slots.filter(s => s.applies(draft, now) && !s.isFilled(draft) && !asked.includes(s.key)).length;
 }
 
 // ─── Answer application ───────────────────────────────────────────────────────
@@ -496,6 +632,8 @@ export function applyAnswer(
     if (key === 'notes') skipped.notes = '';
     if (key === 'reason') skipped.reason = '';
     if (key === 'dose') skipped.dose = '';
+    if (key === 'treatment') skipped.treatment = '';
+    if (key === 'cofactors') skipped.cofactors = [];
     return { draft: skipped, status: 'ok' };
   }
 
@@ -524,6 +662,42 @@ export function applyAnswer(
       }
       return { draft: { ...draft, startedAt, onsetRaw: text }, status: 'ok' };
     }
+    case 'resolved': {
+      const stillGoing = /\b(still|not yet|ongoing|no|nope|it'?s still|hasn'?t)\b/i.test(text);
+      if (stillGoing && parseYesNo(text) !== true) {
+        // Nothing to record yet — the check-in will catch the resolution.
+        return { draft: { ...draft, resolvedPrecision: 'exact', resolvedAt: undefined }, status: 'ok' };
+      }
+      // "it's gone now" is someone confirming at this moment, not reporting an
+      // end time — only treat the answer as exact when it names a time.
+      const when = EXPLICIT_TIME_RE.test(text) ? parseOnset(text, now) : null;
+      if (when) return { draft: { ...draft, resolvedAt: when, resolvedPrecision: 'exact' }, status: 'ok' };
+      if (parseYesNo(text) === true || /\b(stopped|gone|cleared|settled|better|fine now)\b/i.test(text)) {
+        // They confirmed it's over but not when — record now as an upper bound,
+        // so the export can say "resolved within" rather than inventing a time.
+        return {
+          draft: { ...draft, resolvedAt: toLocalDatetimeInputValue(now), resolvedPrecision: 'confirmed-by' },
+          status: 'ok',
+        };
+      }
+      return { draft, status: 'retry', reprompt: 'Has it stopped yet — and if it has, roughly when did it stop?' };
+    }
+    case 'treatment':
+      return { draft: { ...draft, treatment: parseTreatment(text) }, status: 'ok' };
+    case 'epinephrine': {
+      const yn = parseYesNo(text);
+      if (yn == null) return { draft, status: 'retry', reprompt: 'Just yes or no — did you have your epinephrine with you?' };
+      return { draft: { ...draft, epinephrineAvailable: yn ? 'yes' : 'no' }, status: 'ok' };
+    }
+    case 'emergencyCare': {
+      const care = parseEmergencyCare(text);
+      if (care == null) {
+        return { draft, status: 'retry', reprompt: 'Which was it — urgent care, the emergency room, an ambulance, or none of those?' };
+      }
+      return { draft: { ...draft, emergencyCare: care }, status: 'ok' };
+    }
+    case 'cofactors':
+      return { draft: { ...draft, cofactors: parseCofactors(text) }, status: 'ok' };
     case 'dose': {
       const { dose, unit } = parseDose(text);
       if (!dose) return { draft: { ...draft, dose: '', notes: draft.notes }, status: 'ok' };
@@ -572,6 +746,12 @@ export interface HealthEntryPayload {
   time: string;
   followUpAt?: string;
   followUpStatus?: string;
+  familyMemberId?: string;
+  resolvedAt?: string;
+  resolvedPrecision?: string;
+  epinephrineAvailable?: string;
+  emergencyCare?: string;
+  cofactors?: string;
 }
 
 /** Check-ins land the next morning rather than exactly 24h later at 3am. */
@@ -595,11 +775,21 @@ export function draftToPayload(draft: EntryDraft, now: Date = new Date()): Healt
     reason: trimmed(draft.reason),
     subtype: trimmed(draft.subtype),
     time: draft.startedAt || toLocalDatetimeInputValue(now),
+    familyMemberId: trimmed(draft.familyMemberId),
+    resolvedAt: trimmed(draft.resolvedAt),
+    // Only meaningful alongside a resolution time.
+    resolvedPrecision: draft.resolvedAt ? draft.resolvedPrecision : undefined,
+    epinephrineAvailable: draft.epinephrineAvailable,
+    emergencyCare: draft.emergencyCare,
+    // An empty array means "asked, nothing applied" — worth recording, since the
+    // export scores how complete the context is.
+    cofactors: draft.cofactors ? JSON.stringify(draft.cofactors) : undefined,
   };
   if (draft.followUp) {
     payload.followUpAt = nextCheckInTime(now);
     payload.followUpStatus = 'pending';
   }
+  if (draft.resolvedAt) payload.followUpStatus = 'resolved';
   return payload;
 }
 

@@ -43,6 +43,12 @@ export default function CheckInCard({ items, onAnswered }: CheckInCardProps) {
         followUpStatus: outcome,
         // Still there? Ask again tomorrow. Gone? Stop asking.
         followUpAt: outcome === 'ongoing' ? nextCheckInTime(new Date()) : undefined,
+        // Answering "it's gone" is the moment we learn the episode ended. It's an
+        // upper bound, not the exact end — 'confirmed-by' keeps the export honest
+        // about that ("resolved within 26 h", never "resolved in 26 h").
+        ...(outcome === 'resolved'
+          ? { resolvedAt: new Date().toISOString(), resolvedPrecision: 'confirmed-by' }
+          : {}),
         notes: appendNote(outcome === 'resolved' ? `Cleared up by ${stamp}` : `Still present on ${stamp}`),
       });
       onAnswered(item.id);

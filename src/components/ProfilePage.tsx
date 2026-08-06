@@ -10,6 +10,8 @@ import {
   ChevronDownIcon,
   ClipboardIcon,
   CloseIcon,
+  EditIcon,
+  DownloadIcon,
   FlaskIcon,
   MedicalCrossIcon,
   MessageCircleIcon,
@@ -24,6 +26,7 @@ import {
   ZapIcon,
 } from './icons';
 import StatusMessage from './StatusMessage';
+import ExportDataSheet from './ExportDataSheet';
 import { COMMON_ALLERGENS } from '../utils/allergens';
 
 const client = generateClient<Schema>();
@@ -130,6 +133,7 @@ export default function ProfilePage() {
   // ── Profile fields ──
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
+  const [dateOfBirth, setDateOfBirth] = useState('');
   const [medicalHistory, setMedicalHistory] = useState('');
   const [profileId, setProfileId] = useState<string | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
@@ -144,6 +148,7 @@ export default function ProfilePage() {
   // ── Family members ──
   const [familyMembers, setFamilyMembers] = useState<FamilyMemberData[]>([]);
   const [showAddFamily, setShowAddFamily] = useState(false);
+  const [editingFmId, setEditingFmId] = useState<string | null>(null);
   const [fmName, setFmName] = useState('');
   const [fmRelationship, setFmRelationship] = useState('Child');
   const [fmAge, setFmAge] = useState('');
@@ -156,6 +161,9 @@ export default function ProfilePage() {
   // ── Notifications ──
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
 
+  // ── Export ──
+  const [showExport, setShowExport] = useState(false);
+
   // ── Load profile ──
   useEffect(() => {
     (async () => {
@@ -166,6 +174,7 @@ export default function ProfilePage() {
           setProfileId(p.id);
           setName(p.name ?? '');
           setAge(p.age?.toString() ?? '');
+          setDateOfBirth(p.dateOfBirth ?? '');
           setMedicalHistory(p.medicalHistory ?? '');
           if (p.notificationPrefs) {
             try { setNotifPrefs({ ...DEFAULT_PREFS, ...JSON.parse(p.notificationPrefs) }); } catch {}
@@ -225,6 +234,7 @@ export default function ProfilePage() {
           id: profileId,
           name: name || undefined,
           age: age ? parseInt(age) : undefined,
+          dateOfBirth: dateOfBirth || undefined,
           medicalHistory: medicalHistory || undefined,
           notificationPrefs: prefsJson,
         });
@@ -232,6 +242,7 @@ export default function ProfilePage() {
         const { data: created } = await client.models.UserProfile.create({
           name: name || undefined,
           age: age ? parseInt(age) : undefined,
+          dateOfBirth: dateOfBirth || undefined,
           medicalHistory: medicalHistory || undefined,
           notificationPrefs: prefsJson,
         });
@@ -254,36 +265,52 @@ export default function ProfilePage() {
     setFmAllergyChips(prev => prev.includes(chip) ? prev.filter(c => c !== chip) : [...prev, chip]);
   };
 
-  const addFamilyMember = async () => {
+  const resetFamilyForm = () => {
+    setEditingFmId(null);
+    setFmName(''); setFmRelationship('Child'); setFmAge(''); setFmAllergyChips([]); setFmAllergyOther('');
+    setFmConditions(''); setFmMedications(''); setFmNotes(''); setShowAddFamily(false);
+  };
+
+  const startEditFamilyMember = (fm: FamilyMemberData) => {
+    const allergyList = (fm.knownAllergies ?? '').split(',').map(s => s.trim()).filter(Boolean);
+    setEditingFmId(fm.id);
+    setFmName(fm.name);
+    setFmRelationship(fm.relationship);
+    setFmAge(fm.age ? fm.age.toString() : '');
+    setFmAllergyChips(allergyList.filter(a => COMMON_ALLERGENS.includes(a)));
+    setFmAllergyOther(allergyList.filter(a => !COMMON_ALLERGENS.includes(a)).join(', '));
+    setFmConditions(fm.medicalConditions ?? '');
+    setFmMedications(fm.medications ?? '');
+    setFmNotes(fm.notes ?? '');
+    setShowAddFamily(true);
+  };
+
+  const saveFamilyMember = async () => {
     if (!fmName.trim() || !fmRelationship) return alert('Please enter name and relationship.');
     const knownAllergies = [...fmAllergyChips, ...fmAllergyOther.split(',').map(s => s.trim()).filter(Boolean)].join(', ');
+    const payload = {
+      name: fmName.trim(),
+      relationship: fmRelationship,
+      age: fmAge ? parseInt(fmAge) : undefined,
+      knownAllergies: knownAllergies || undefined,
+      medicalConditions: fmConditions || undefined,
+      medications: fmMedications || undefined,
+      notes: fmNotes || undefined,
+    };
     try {
-      const { data: created } = await client.models.FamilyMember.create({
-        name: fmName.trim(),
-        relationship: fmRelationship,
-        age: fmAge ? parseInt(fmAge) : undefined,
-        knownAllergies: knownAllergies || undefined,
-        medicalConditions: fmConditions || undefined,
-        medications: fmMedications || undefined,
-        notes: fmNotes || undefined,
-      });
-      if (created) {
-        setFamilyMembers(prev => [...prev, {
-          id: created.id, name: fmName.trim(), relationship: fmRelationship,
-          age: fmAge ? parseInt(fmAge) : undefined,
-          knownAllergies: knownAllergies || undefined,
-          medicalConditions: fmConditions || undefined,
-          medications: fmMedications || undefined,
-          notes: fmNotes || undefined,
-        }]);
+      if (editingFmId) {
+        await client.models.FamilyMember.update({ id: editingFmId, ...payload });
+        setFamilyMembers(prev => prev.map(m => m.id === editingFmId ? { ...m, ...payload } : m));
+      } else {
+        const { data: created } = await client.models.FamilyMember.create(payload);
+        if (created) setFamilyMembers(prev => [...prev, { id: created.id, ...payload }]);
       }
-      setFmName(''); setFmAge(''); setFmAllergyChips([]); setFmAllergyOther(''); setFmConditions('');
-      setFmMedications(''); setFmNotes(''); setShowAddFamily(false);
-      setProfileMsg({ type: 'success', text: 'Family member added!' });
+      resetFamilyForm();
+      setProfileMsg({ type: 'success', text: editingFmId ? 'Family member updated!' : 'Family member added!' });
       setTimeout(() => setProfileMsg(null), 2000);
     } catch (e) {
-      console.error('Failed to add family member:', e);
-      setProfileMsg({ type: 'error', text: 'Failed to add' }); setTimeout(() => setProfileMsg(null), 3000);
+      console.error('Failed to save family member:', e);
+      setProfileMsg({ type: 'error', text: 'Failed to save' }); setTimeout(() => setProfileMsg(null), 3000);
     }
   };
 
@@ -355,6 +382,12 @@ export default function ProfilePage() {
               <input type="number" value={age} onChange={e => setAge(e.target.value)} placeholder="Enter your age" />
             </div>
             <div className="form-group">
+              <label>Date of Birth</label>
+              <input type="date" value={dateOfBirth} onChange={e => setDateOfBirth(e.target.value)}
+                max={new Date().toISOString().slice(0, 10)} />
+              <span style={{ fontSize: 11, color: '#94a3b8' }}>Used on the clinician export — optional, but a DOB is what allergists expect on any record.</span>
+            </div>
+            <div className="form-group">
               <label>Medical History</label>
               <textarea value={medicalHistory} onChange={e => setMedicalHistory(e.target.value)}
                 rows={3} placeholder="Known allergies, conditions, medications…"
@@ -363,6 +396,23 @@ export default function ProfilePage() {
           </>
         )}
       </Section>
+
+      {/* ── Clinician export ── */}
+      <Section title="Clinician Export" icon={DownloadIcon}>
+        <p style={{ marginTop: 0, marginBottom: 12, color: '#667781', fontSize: 13, lineHeight: 1.5 }}>
+          Turn logged entries into an allergy visit summary — a PDF built for a clinician, with detected
+          patterns, a reaction timeline, and notes on what wasn't recorded. It does not diagnose anything.
+        </p>
+        <button
+          className="save-btn"
+          style={{ display: 'flex', alignItems: 'center', gap: 8 }}
+          onClick={() => setShowExport(true)}
+        >
+          <DownloadIcon /> Export data
+        </button>
+      </Section>
+
+      {showExport && <ExportDataSheet onClose={() => setShowExport(false)} />}
 
       {/* ── Chat History ── */}
       <Section title="Chat Conversations" icon={MessageCircleIcon} badge={chatCount}>
@@ -523,7 +573,10 @@ export default function ProfilePage() {
                     )}
                     {fm.notes && <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#667781', marginTop: 4, fontStyle: 'italic' }}><NoteIcon /> {fm.notes}</div>}
                   </div>
-                  <button onClick={() => deleteFamilyMember(fm.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', color: '#DC2626', flexShrink: 0 }}><CloseIcon /></button>
+                  <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                    <button onClick={() => startEditFamilyMember(fm)} title="Edit family member" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', color: '#4A7BA7' }}><EditIcon /></button>
+                    <button onClick={() => deleteFamilyMember(fm.id)} title="Remove family member" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', color: '#DC2626' }}><CloseIcon /></button>
+                  </div>
                 </div>
               </div>
             ))}
@@ -532,7 +585,9 @@ export default function ProfilePage() {
 
         {showAddFamily ? (
           <div style={{ marginTop: 16, padding: 16, background: '#F8FBFF', borderRadius: 10, border: '1px solid #D1E7F4' }}>
-            <h4 style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4A7BA7', marginBottom: 12, fontSize: 14 }}><PlusIcon /> Add Family Member</h4>
+            <h4 style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4A7BA7', marginBottom: 12, fontSize: 14 }}>
+              {editingFmId ? <EditIcon /> : <PlusIcon />} {editingFmId ? 'Edit Family Member' : 'Add Family Member'}
+            </h4>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
               <div className="form-group" style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 13 }}>Name *</label>
@@ -587,8 +642,10 @@ export default function ProfilePage() {
                 style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8, fontFamily: 'inherit', fontSize: '0.875rem' }} />
             </div>
             <div style={{ display: 'flex', gap: 8 }}>
-              <button className="save-btn" onClick={addFamilyMember} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 20px', fontSize: 13 }}><CheckCircleIcon /> Add Member</button>
-              <button onClick={() => setShowAddFamily(false)} style={{ padding: '10px 20px', fontSize: 13, background: 'none', border: '1px solid #E9EDEF', borderRadius: 8, cursor: 'pointer', color: '#667781' }}>Cancel</button>
+              <button className="save-btn" onClick={saveFamilyMember} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, padding: '10px 20px', fontSize: 13 }}>
+                <CheckCircleIcon /> {editingFmId ? 'Save Changes' : 'Add Member'}
+              </button>
+              <button onClick={resetFamilyForm} style={{ padding: '10px 20px', fontSize: 13, background: 'none', border: '1px solid #E9EDEF', borderRadius: 8, cursor: 'pointer', color: '#667781' }}>Cancel</button>
             </div>
           </div>
         ) : (

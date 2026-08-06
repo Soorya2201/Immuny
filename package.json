@@ -24,6 +24,7 @@
     "@aws-sdk/client-textract": "^3.1079.0",
     "@gradio/client": "^2.0.4",
     "aws-amplify": "^6.16.2",
+    "jspdf": "^4.2.1",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-media-recorder": "^1.7.2"

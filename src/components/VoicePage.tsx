@@ -5,9 +5,13 @@ import type { Page } from '../types';
 import beaImg from '../assets/bea.png';
 import { toLocalDatetimeInputValue } from '../utils/formatTime';
 import { cancelSpeech, primeVoices, speak } from '../utils/speech';
+import { phraseQuestion } from '../utils/beaVoice';
+import { getActivePatientId } from '../utils/activePatient';
 import {
   applyAnswer,
+  COFACTOR_OPTIONS,
   draftToPayload,
+  isSignificantEpisode,
   localExtract,
   needsBodyArea,
   nextSlot,
@@ -17,11 +21,19 @@ import {
   remainingCount,
   stashUnparsed,
   toFiveScale,
+  type EmergencyCare,
   type EntryDraft,
   type EntryType,
   type Slot,
   type SlotKey,
 } from '../utils/voiceInterview';
+
+const EMERGENCY_LABELS: Record<EmergencyCare, string> = {
+  'none': 'None',
+  'urgent-care': 'Urgent care',
+  'emergency-room': 'Emergency room',
+  'ambulance': 'Ambulance',
+};
 
 const client = generateClient<Schema>();
 
@@ -354,9 +366,21 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
 
   // ── Conversation control ───────────────────────────────────────────────────
   const askSlot = useCallback(async (slot: Slot, forDraft: EntryDraft, override?: string) => {
-    const question = override ?? slot.ask(forDraft);
     slotRef.current = slot;
     setActiveSlot(slot);
+
+    // A re-prompt after a misheard answer is already tuned to explain what's
+    // needed — rephrasing that one would lose the correction.
+    let question = override ?? slot.ask(forDraft);
+    if (!override) {
+      setPhase('thinking');
+      question = await phraseQuestion(question, {
+        mustKeep: slot.keep,
+        context: `${forDraft.type.toLowerCase()}${forDraft.name ? ` "${forDraft.name}"` : ''}`,
+      });
+      if (abortedRef.current) return;
+    }
+
     pushTurn('bea', question);
     setPhase('speaking');
     await speak(question, { muted: mutedRef.current });
@@ -495,19 +519,30 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
     const finalDraft = draftRef.current;
     if (!finalDraft) return;
     setPhase('saving');
-    const payload = draftToPayload(finalDraft);
+    const payload = draftToPayload({ ...finalDraft, familyMemberId: getActivePatientId() });
     try {
-      try {
-        await client.models.HealthEntry.create(payload);
-      } catch (err) {
-        // The check-in columns deploy alongside this screen; if the backend is
-        // still catching up, save the entry itself rather than losing it.
-        if (!payload.followUpAt) throw err;
-        console.warn('VoicePage: retrying save without check-in fields', err);
-        const withoutCheckIn = { ...payload };
-        delete withoutCheckIn.followUpAt;
-        delete withoutCheckIn.followUpStatus;
-        await client.models.HealthEntry.create(withoutCheckIn);
+      const { data: created } = await client.models.HealthEntry.create(payload);
+
+      // "I took some Benadryl for it" becomes its own medication entry, linked
+      // both ways — that link is what lets the export report whether treatment
+      // helped, rather than listing doses and symptoms as unrelated rows.
+      if (created?.id && finalDraft.treatment) {
+        try {
+          const { data: med } = await client.models.HealthEntry.create({
+            type: 'Medication',
+            name: finalDraft.treatment,
+            time: finalDraft.startedAt || toLocalDatetimeInputValue(new Date()),
+            reason: finalDraft.name,
+            relatedEntryId: created.id,
+            familyMemberId: getActivePatientId(),
+          });
+          if (med?.id) {
+            await client.models.HealthEntry.update({ id: created.id, relatedEntryId: med.id });
+          }
+        } catch (linkErr) {
+          // The symptom itself is saved; a missing link shouldn't fail the log.
+          console.warn('VoicePage: could not save the linked medication entry', linkErr);
+        }
       }
 
       const summary = [
@@ -515,6 +550,11 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
         finalDraft.bodyArea ? `Where: ${finalDraft.bodyArea}` : '',
         typeof finalDraft.severity === 'number' ? `Severity: ${toFiveScale(finalDraft.severity)}/5` : '',
         finalDraft.startedAt ? `Started: ${new Date(finalDraft.startedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}` : '',
+        finalDraft.resolvedAt ? `Resolved: ${new Date(finalDraft.resolvedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}` : '',
+        finalDraft.treatment ? `Taken for it: ${finalDraft.treatment}` : '',
+        finalDraft.cofactors?.length ? `Context: ${finalDraft.cofactors.join(', ')}` : '',
+        finalDraft.epinephrineAvailable ? `Epinephrine on hand: ${finalDraft.epinephrineAvailable}` : '',
+        finalDraft.emergencyCare && finalDraft.emergencyCare !== 'none' ? `Emergency care: ${EMERGENCY_LABELS[finalDraft.emergencyCare]}` : '',
         finalDraft.notes ? `Notes: ${finalDraft.notes}` : '',
         finalDraft.followUp ? 'Bea will check in tomorrow' : '',
       ].filter(Boolean);
@@ -741,6 +781,91 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
               />
             </div>
 
+            {draft.resolvedAt && (
+              <div className="voice-review-row">
+                <label className="voice-review-label">
+                  {draft.resolvedPrecision === 'confirmed-by' ? 'Resolved by' : 'Resolved'}
+                </label>
+                <input
+                  className="voice-review-input"
+                  type="datetime-local"
+                  value={draft.resolvedAt}
+                  max={toLocalDatetimeInputValue(new Date())}
+                  onChange={e => patchDraft({ resolvedAt: e.target.value, resolvedPrecision: 'exact' })}
+                />
+              </div>
+            )}
+
+            {draft.type === 'Symptom' && (
+              <div className="voice-review-row">
+                <label className="voice-review-label">Taken for it</label>
+                <input
+                  className="voice-review-input"
+                  value={draft.treatment ?? ''}
+                  placeholder="e.g. Cetirizine — leave blank for nothing"
+                  onChange={e => patchDraft({ treatment: e.target.value })}
+                />
+              </div>
+            )}
+
+            {draft.type === 'Symptom' && (
+              <div className="voice-review-row">
+                <label className="voice-review-label">What else was going on</label>
+                <div className="voice-cofactor-row">
+                  {COFACTOR_OPTIONS.map(c => {
+                    const on = draft.cofactors?.includes(c) ?? false;
+                    return (
+                      <button
+                        key={c}
+                        className={`voice-cofactor-chip ${on ? 'voice-cofactor-chip--on' : ''}`}
+                        onClick={() => patchDraft({
+                          cofactors: on
+                            ? (draft.cofactors ?? []).filter(x => x !== c)
+                            : [...(draft.cofactors ?? []), c],
+                        })}
+                      >
+                        {c}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Red-flag episodes only — these two are what a clinician looks for first. */}
+            {isSignificantEpisode(draft) && (
+              <>
+                <div className="voice-review-row">
+                  <label className="voice-review-label">Epinephrine on hand</label>
+                  <div className="voice-severity-row">
+                    {(['yes', 'no'] as const).map(v => (
+                      <button
+                        key={v}
+                        className={`voice-severity-btn ${draft.epinephrineAvailable === v ? 'voice-severity-btn--on' : ''}`}
+                        onClick={() => patchDraft({ epinephrineAvailable: v })}
+                      >
+                        {v === 'yes' ? 'Yes' : 'No'}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="voice-review-row">
+                  <label className="voice-review-label">Emergency care</label>
+                  <div className="voice-cofactor-row">
+                    {(Object.keys(EMERGENCY_LABELS) as EmergencyCare[]).map(v => (
+                      <button
+                        key={v}
+                        className={`voice-cofactor-chip ${draft.emergencyCare === v ? 'voice-cofactor-chip--on' : ''}`}
+                        onClick={() => patchDraft({ emergencyCare: v })}
+                      >
+                        {EMERGENCY_LABELS[v]}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </>
+            )}
+
             <div className="voice-review-row">
               <label className="voice-review-label">Notes</label>
               <textarea
@@ -752,7 +877,7 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
               />
             </div>
 
-            {draft.type !== 'Medication' && (
+            {draft.type !== 'Medication' && !draft.resolvedAt && (
               <label className="voice-review-checkline">
                 <input
                   type="checkbox"

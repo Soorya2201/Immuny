@@ -50,6 +50,20 @@ Rules:
 - Only include information the user actually stated. Never invent or infer values.
 - Omit any field the user did not mention rather than guessing.`;
 
+// ─── PHRASING PROMPT ──────────────────────────────────────────────────────────
+// Used when mode === 'phrase' (the voice logger). The caller decides which
+// question to ask and supplies the exact wording; Nova only makes it sound
+// spoken. The client re-validates the result and falls back to its own wording
+// if anything here drifts, so this prompt is a first line of defence, not the
+// only one.
+const PHRASE_PROMPT = `You rewrite a single question for Bea, a warm voice assistant that helps someone log allergy symptoms.
+
+Rules:
+- Reply with exactly ONE short question and nothing else. No greeting, no preamble, no quotation marks, no explanation.
+- Keep the meaning identical. Keep every scale, number and option exactly as written (if the question says "1 to 5", your version says "1 to 5").
+- Never add a second question. Never add advice, reassurance, or an interpretation of symptoms.
+- Plain, warm, under 20 words.`;
+
 export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
     event
 ) => {
@@ -58,13 +72,15 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
         if (!question) return "Hey! Ask me anything about your allergies or health.";
 
         const extracting = mode === "extract";
+        const phrasing = mode === "phrase";
 
         // ── Build system block ──────────────────────────────────────────────────
         // If a session context summary is provided, append it so Nova is fully
         // grounded in what's happened this conversation.
-        const basePrompt = extracting ? EXTRACT_PROMPT : SYSTEM_PROMPT;
+        const basePrompt = extracting ? EXTRACT_PROMPT : phrasing ? PHRASE_PROMPT : SYSTEM_PROMPT;
+        const contextLabel = extracting ? "INPUT" : phrasing ? "CONTEXT" : "SESSION CONTEXT";
         const systemText = context
-            ? `${basePrompt}\n\n--- ${extracting ? "INPUT" : "SESSION CONTEXT"} ---\n${context}\n-----------------------`
+            ? `${basePrompt}\n\n--- ${contextLabel} ---\n${context}\n-----------------------`
             : basePrompt;
 
         // ── Build conversation messages ─────────────────────────────────────────
@@ -99,6 +115,12 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
                       maxTokens: 400,   // room for a few extracted entries
                       temperature: 0,   // extraction must be repeatable, not creative
                       topP: 1,
+                  }
+                : phrasing
+                ? {
+                      maxTokens: 60,     // one short question
+                      temperature: 0.4,  // a little variety, still tightly bound
+                      topP: 0.9,
                   }
                 : {
                       maxTokens: 300,    // Raised from 80 — allow complete, natural sentences

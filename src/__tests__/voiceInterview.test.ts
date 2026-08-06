@@ -7,18 +7,23 @@ import {
   describeDraft,
   draftToPayload,
   isCancel,
+  isSignificantEpisode,
   isSkip,
   localExtract,
   needsBodyArea,
   nextSlot,
   openingSeverity,
+  parseCofactors,
   parseDose,
+  parseEmergencyCare,
   parseOnset,
   parseSeverity,
+  parseTreatment,
   parseYesNo,
   stashUnparsed,
   toFiveScale,
   type EntryDraft,
+  type SlotKey,
 } from '../utils/voiceInterview';
 
 // Wednesday 15 May 2024, 15:00 local.
@@ -172,13 +177,16 @@ describe('opening fallback (used when the model call fails)', () => {
 describe('slot selection', () => {
   const base: EntryDraft = { type: 'Symptom', name: 'Rash' };
 
-  it('asks where, how bad, when, notes, then the check-in', () => {
-    expect(nextSlot(base)?.key).toBe('bodyArea');
-    expect(nextSlot({ ...base, bodyArea: 'Arm' })?.key).toBe('severity');
-    expect(nextSlot({ ...base, bodyArea: 'Arm', severity: 6 })?.key).toBe('onset');
-    expect(nextSlot({ ...base, bodyArea: 'Arm', severity: 6, startedAt: 'x' })?.key).toBe('notes');
-    expect(nextSlot({ ...base, bodyArea: 'Arm', severity: 6, startedAt: 'x', notes: '' })?.key).toBe('followUp');
-    expect(nextSlot({ ...base, bodyArea: 'Arm', severity: 6, startedAt: 'x', notes: '', followUp: false })).toBeNull();
+  it('asks where, how bad, when, treatment, cofactors, notes, then the check-in', () => {
+    const filled = { ...base, bodyArea: 'Arm', severity: 6, startedAt: '2024-05-15T14:30' };
+    expect(nextSlot(base, [], NOW)?.key).toBe('bodyArea');
+    expect(nextSlot({ ...base, bodyArea: 'Arm' }, [], NOW)?.key).toBe('severity');
+    expect(nextSlot({ ...base, bodyArea: 'Arm', severity: 6 }, [], NOW)?.key).toBe('onset');
+    expect(nextSlot(filled, [], NOW)?.key).toBe('treatment');
+    expect(nextSlot({ ...filled, treatment: '' }, [], NOW)?.key).toBe('cofactors');
+    expect(nextSlot({ ...filled, treatment: '', cofactors: [] }, [], NOW)?.key).toBe('notes');
+    expect(nextSlot({ ...filled, treatment: '', cofactors: [], notes: '' }, [], NOW)?.key).toBe('followUp');
+    expect(nextSlot({ ...filled, treatment: '', cofactors: [], notes: '', followUp: false }, [], NOW)).toBeNull();
   });
 
   it('skips "where" for whole-body symptoms', () => {
@@ -228,6 +236,85 @@ describe('applyAnswer', () => {
     const stashed = stashUnparsed(base, 'onset', 'sometime around when the pollen got bad');
     expect(stashed.notes).toContain('pollen got bad');
     expect(stashed.startedAt).toBeTruthy();
+  });
+});
+
+describe('clinical follow-up questions', () => {
+  const mild: EntryDraft = { type: 'Symptom', name: 'Rash', bodyArea: 'Arm', severity: 4, startedAt: '2024-05-15T14:00' };
+  const severe: EntryDraft = { ...mild, severity: 8 };
+  const airway: EntryDraft = { type: 'Symptom', name: 'Throat tightness', severity: 4, startedAt: '2024-05-15T14:00' };
+
+  it('asks about epinephrine and emergency care only for significant episodes', () => {
+    expect(isSignificantEpisode(mild)).toBe(false);
+    expect(isSignificantEpisode(severe)).toBe(true);
+    expect(isSignificantEpisode(airway)).toBe(true);   // red-flag symptom, despite a mild rating
+
+    const mildKeys: SlotKey[] = [];
+    for (let i = 0; i < 8; i++) {
+      const s = nextSlot(mild, mildKeys, NOW);
+      if (!s) break;
+      mildKeys.push(s.key);
+    }
+    expect(mildKeys).not.toContain('epinephrine');
+    expect(mildKeys).not.toContain('emergencyCare');
+    expect(mildKeys).toContain('treatment');
+    expect(mildKeys).toContain('cofactors');
+
+    expect(nextSlot(severe, ['treatment'], NOW)?.key).toBe('epinephrine');
+    expect(nextSlot(severe, ['treatment', 'epinephrine'], NOW)?.key).toBe('emergencyCare');
+  });
+
+  it('only asks whether it has settled once enough time has passed', () => {
+    const justNow: EntryDraft = { ...mild, startedAt: '2024-05-15T14:30' };   // 30 min before NOW
+    expect(nextSlot(justNow, [], NOW)?.key).not.toBe('resolved');
+    const thisMorning: EntryDraft = { ...mild, startedAt: '2024-05-15T08:00' };
+    expect(nextSlot(thisMorning, [], NOW)?.key).toBe('resolved');
+  });
+
+  it('records an exact resolution time when given, and an upper bound otherwise', () => {
+    const old: EntryDraft = { ...mild, startedAt: '2024-05-15T08:00' };
+    const exact = applyAnswer(old, 'resolved', 'yes it stopped about two hours ago', NOW);
+    expect(exact.draft.resolvedAt).toBe('2024-05-15T13:00');
+    expect(exact.draft.resolvedPrecision).toBe('exact');
+
+    const vague = applyAnswer(old, 'resolved', "yeah it's gone now", NOW);
+    expect(vague.draft.resolvedAt).toBe('2024-05-15T15:00');
+    expect(vague.draft.resolvedPrecision).toBe('confirmed-by');
+
+    const ongoing = applyAnswer(old, 'resolved', 'no still going', NOW);
+    expect(ongoing.draft.resolvedAt).toBeUndefined();
+    expect(ongoing.status).toBe('ok');
+  });
+
+  it('skips the check-in offer once the episode is already over', () => {
+    const resolved: EntryDraft = { ...mild, resolvedAt: '2024-05-15T12:00', treatment: '', cofactors: [], notes: '' };
+    expect(nextSlot(resolved, ['resolved'], NOW)).toBeNull();
+  });
+
+  it('parses what was taken for it', () => {
+    expect(applyAnswer(mild, 'treatment', 'I took some Benadryl', NOW).draft.treatment).toBe('Benadryl');
+    expect(applyAnswer(mild, 'treatment', 'nothing', NOW).draft.treatment).toBe('');
+    expect(parseTreatment('cetirizine')).toBe('Cetirizine');
+  });
+
+  it('parses epinephrine availability and emergency care', () => {
+    expect(applyAnswer(severe, 'epinephrine', 'yes it was in my bag', NOW).draft.epinephrineAvailable).toBe('yes');
+    expect(applyAnswer(severe, 'epinephrine', 'no I left it at home', NOW).draft.epinephrineAvailable).toBe('no');
+
+    expect(parseEmergencyCare('we called an ambulance')).toBe('ambulance');
+    expect(parseEmergencyCare('I went to the ER')).toBe('emergency-room');
+    expect(parseEmergencyCare('just urgent care')).toBe('urgent-care');
+    expect(parseEmergencyCare('no')).toBe('none');
+    // A bare "yes" is ambiguous and must be re-asked, never guessed.
+    expect(parseEmergencyCare('yes')).toBeNull();
+    expect(applyAnswer(severe, 'emergencyCare', 'yes', NOW).status).toBe('retry');
+  });
+
+  it('parses cofactors from speech and from chips', () => {
+    expect(parseCofactors('I had just been running and I had a cold')).toEqual(['Exercise', 'Illness']);
+    expect(parseCofactors('I took some ibuprofen earlier')).toEqual(['NSAIDs']);
+    expect(parseCofactors('Exercise')).toEqual(['Exercise']);
+    expect(applyAnswer(mild, 'cofactors', 'none of these', NOW).draft.cofactors).toEqual([]);
   });
 });
 

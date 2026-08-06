@@ -11,6 +11,7 @@ const schema = a.schema({
   UserProfile: a.model({
     name: a.string(),
     age: a.integer(),
+    dateOfBirth: a.string(),         // ISO 'YYYY-MM-DD' — printed on the clinician export
     medicalHistory: a.string(),
     notificationPrefs: a.string(),   // JSON string for notification toggles
     caregiverRelationship: a.string(),  // e.g. 'Mother', 'Father', 'Guardian'
@@ -41,6 +42,19 @@ const schema = a.schema({
     containsSummary: a.string(),       // "This food contains: peanuts, milk" derived from OCR text
     followUpAt: a.string(),            // ISO datetime Bea should check back in; null = no check-in
     followUpStatus: a.string(),        // 'pending' | 'ongoing' | 'resolved'
+
+    // ── Clinical export fields ───────────────────────────────────────────────
+    // These are deliberately nullable strings rather than booleans/enums: the
+    // export has to distinguish "answered no" from "never asked", and a clinical
+    // document that prints a confident 0 for data nobody collected is worse than
+    // one that prints "not recorded".
+    familyMemberId: a.string(),        // which patient this entry is about; null = profile owner
+    resolvedAt: a.string(),            // ISO datetime the symptom cleared
+    resolvedPrecision: a.string(),     // 'exact' (user gave a time) | 'confirmed-by' (upper bound from a check-in)
+    relatedEntryId: a.string(),        // symptom ↔ the medication entry taken for it
+    epinephrineAvailable: a.string(),  // 'yes' | 'no' — absent means never asked
+    emergencyCare: a.string(),         // 'none' | 'urgent-care' | 'emergency-room' | 'ambulance'
+    cofactors: a.string(),             // JSON string array, e.g. ["Exercise","High pollen"]
   }).authorization(allow => [allow.owner()]),
 
   // ── Medications (schedule) ────────────────────────────────────────────────
