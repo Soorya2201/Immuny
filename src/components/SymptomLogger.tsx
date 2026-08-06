@@ -1,10 +1,8 @@
-import { useState, useRef, useEffect, type ComponentType } from 'react';
+import { useState, useEffect, type ComponentType } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import {
   CheckCircleIcon,
-  ChevronDownIcon,
-  ChevronUpIcon,
   ClipboardIcon,
   CloseIcon,
   EditIcon,
@@ -13,12 +11,12 @@ import {
   MicIcon,
   PillIcon,
   SearchIcon,
-  StopIcon,
   ThermometerIcon,
   UtensilsIcon,
 } from './icons';
 import StatusMessage from './StatusMessage';
 import LabelScanButton from './LabelScanButton';
+import type { Page } from '../types';
 import { toLocalDatetimeInputValue } from '../utils/formatTime';
 import { COMMON_ALLERGENS } from '../utils/allergens';
 import { buildContainsSummary, detectAllergensInText } from '../utils/ocr';
@@ -56,7 +54,6 @@ function SeverityBar({ value }: { value: number }) {
 }
 
 function EntryCard({ entry, onDelete, onEdit }: { entry: HealthEntry; onDelete: () => void; onEdit: (updates: Partial<HealthEntry>) => void }) {
-  const [expanded, setExpanded] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState(entry.name);
@@ -69,7 +66,6 @@ function EntryCard({ entry, onDelete, onEdit }: { entry: HealthEntry; onDelete: 
     setEditNotes(entry.notes ?? entry.details ?? entry.reason ?? '');
     setEditSeverity(entry.severity ?? 5);
     setEditing(true);
-    setExpanded(true);
   };
 
   const saveEdit = () => {
@@ -106,9 +102,6 @@ function EntryCard({ entry, onDelete, onEdit }: { entry: HealthEntry; onDelete: 
         <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
           {!confirmDelete && !editing && (
             <>
-              <button onClick={() => setExpanded(!expanded)} title="Expand" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer' }}>
-                {expanded ? <ChevronUpIcon /> : <ChevronDownIcon />}
-              </button>
               <button onClick={startEdit} title="Edit entry" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', color: '#4A7BA7' }}><EditIcon /></button>
               <button onClick={() => setConfirmDelete(true)} title="Delete entry" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'none', border: '1px solid #E9EDEF', borderRadius: 4, width: 26, height: 26, cursor: 'pointer', color: '#DC2626' }}><CloseIcon /></button>
             </>
@@ -144,7 +137,7 @@ function EntryCard({ entry, onDelete, onEdit }: { entry: HealthEntry; onDelete: 
       {entry.containsSummary && (
         <div className="ocr-contains-summary" style={{ marginTop: 8, marginBottom: 0 }}>{entry.containsSummary}</div>
       )}
-      {expanded && !editing && (entry.notes || entry.details || entry.reason || entry.bodyArea || entry.ocrIngredients || entry.ocrNutrition) && (
+      {!editing && (entry.notes || entry.details || entry.reason || entry.bodyArea || entry.ocrIngredients || entry.ocrNutrition) && (
         <div style={{ marginTop: 8, padding: 10, background: '#F0F2F5', borderRadius: 6, fontSize: 13, color: '#3B4A54', borderTop: '1px solid #E9EDEF' }}>
           {entry.bodyArea && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPinIcon /> {entry.bodyArea}</div>}
           {entry.notes || entry.details || entry.reason}
@@ -179,20 +172,16 @@ function EntryCard({ entry, onDelete, onEdit }: { entry: HealthEntry; onDelete: 
 
 interface SymptomLoggerPageProps {
   initialTab?: 'Exposure' | 'Symptom' | 'Medication' | 'History';
+  onNavigate?: (page: Page) => void;
 }
 
-export default function SymptomLoggerPage({ initialTab }: SymptomLoggerPageProps) {
+export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLoggerPageProps) {
   const now = new Date();
   const [activeTab, setActiveTab] = useState<'Exposure' | 'Symptom' | 'Medication' | 'History'>(initialTab ?? 'Exposure');
   const [entries, setEntries] = useState<HealthEntry[]>([]);
   const [historyFilter, setHistoryFilter] = useState('All');
   const [search, setSearch] = useState('');
   const [loaded, setLoaded] = useState(false);
-
-  const [listening, setListening] = useState(false);
-  const [voiceText, setVoiceText] = useState('');
-  const recRef = useRef<any>(null);
-  const voiceSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
 
   const [expType, setExpType] = useState('Meal');
   const [expName, setExpName] = useState('');
@@ -322,16 +311,6 @@ export default function SymptomLoggerPage({ initialTab }: SymptomLoggerPageProps
     }
   };
 
-  const startVoice = () => {
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    const rec = new SR();
-    rec.continuous = false; rec.lang = 'en-US';
-    rec.onresult = (e: any) => setVoiceText(e.results[0][0].transcript);
-    rec.onend = () => setListening(false);
-    rec.start(); recRef.current = rec; setListening(true);
-  };
-  const stopVoice = () => { recRef.current?.stop(); setListening(false); };
-
   const filteredEntries = entries
     .filter(e => historyFilter === 'All' || e.type === historyFilter)
     .filter(e => !search || e.name?.toLowerCase().includes(search.toLowerCase()) || (Array.isArray(e.tags) && e.tags.some((t: string) => t.toLowerCase().includes(search.toLowerCase()))))
@@ -340,27 +319,23 @@ export default function SymptomLoggerPage({ initialTab }: SymptomLoggerPageProps
   return (
     <div className="page-container">
       <h2 style={{ display: 'flex', alignItems: 'center', gap: 8 }}><ClipboardIcon /> Health Logger</h2>
-      <div style={{ background: '#F0F2F5', borderRadius: 8, padding: 12, marginBottom: 20, border: '1px solid #E9EDEF' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: voiceText ? 10 : 0 }}>
-          <button onClick={listening ? stopVoice : startVoice} className="save-btn" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13, background: listening ? '#DC2626' : '#4A7BA7' }}>
-            {listening ? <><StopIcon /> Stop</> : <><MicIcon /> Voice Log</>}
+      {/* Hands off to the guided voice logger, which asks the follow-up
+          questions and writes the entry itself. This used to be a dictation
+          box that transcribed your words and then did nothing with them. */}
+      {onNavigate && (
+        <div style={{ background: '#F0F2F5', borderRadius: 8, padding: 12, marginBottom: 20, border: '1px solid #E9EDEF' }}>
+          <button
+            onClick={() => onNavigate('voice')}
+            className="save-btn"
+            style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '8px 16px', fontSize: 13, background: '#4A7BA7' }}
+          >
+            <MicIcon /> Log by voice with Bea
           </button>
-          {!voiceSupported && <span style={{ fontSize: 12, color: '#DC2626' }}>Voice not supported</span>}
-          {listening && (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: '#4A7BA7', fontWeight: 600 }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', background: '#4A7BA7', display: 'inline-block' }} />
-              Listening...
-            </span>
-          )}
-        </div>
-        {voiceText && (
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-            <div style={{ flex: 1, background: '#fff', border: '1px solid #E9EDEF', borderRadius: 6, padding: '8px 12px', fontSize: 13 }}>"{voiceText}"</div>
-            <button className="save-btn" style={{ padding: '8px 12px', fontSize: 12 }} onClick={() => setVoiceText('')}>Clear</button>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#aaa', marginTop: 8 }}>
+            <LightbulbIcon /> Bea asks where it is, how bad it is, and when it started — then saves it for you
           </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11, color: '#aaa', marginTop: 6 }}><LightbulbIcon /> Speak your entry, then fill the form below</div>
-      </div>
+        </div>
+      )}
 
       <div style={{ display: 'flex', gap: 4, marginBottom: 20, borderBottom: '2px solid #E9EDEF', paddingBottom: 0, overflowX: 'auto' }}>
         {(['Exposure', 'Symptom', 'Medication', 'History'] as const).map(t => (

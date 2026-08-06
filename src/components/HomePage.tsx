@@ -7,6 +7,8 @@ import { getNextUpcoming } from '../utils/medications';
 import type { TodayDoseEntry } from '../utils/medications';
 import SymptomOverviewCard from './SymptomOverviewCard';
 import ProgressCard from './ProgressCard';
+import CheckInCard from './CheckInCard';
+import type { DueCheckIn } from './CheckInCard';
 import {
   ArrowRightIcon,
   BarChartIcon,
@@ -37,6 +39,7 @@ interface HomePageProps {
 
 export default function HomePage({ onNavigate, userName }: HomePageProps) {
   const [healthEntries, setHealthEntries] = useState<HealthEntryRow[]>([]);
+  const [checkIns, setCheckIns] = useState<DueCheckIn[]>([]);
   const [testedAllergens, setTestedAllergens] = useState<string[]>([]);
   const [nextMed, setNextMed] = useState<TodayDoseEntry | null>(null);
   const [profileName, setProfileName] = useState<string | null>(null);
@@ -60,6 +63,23 @@ export default function HomePage({ onNavigate, userName }: HomePageProps) {
         const { data } = await client.models.HealthEntry.list();
         if (data) {
           setHealthEntries(data.map(d => ({ type: d.type, time: d.time, severity: d.severity ?? null })));
+
+          // Check-ins the voice logger scheduled, once they come due.
+          const now = Date.now();
+          setCheckIns(
+            data
+              .filter(d => d.followUpAt && d.followUpStatus !== 'resolved' && new Date(d.followUpAt).getTime() <= now)
+              .sort((a, b) => new Date(a.followUpAt!).getTime() - new Date(b.followUpAt!).getTime())
+              .map(d => ({
+                id: d.id,
+                type: d.type,
+                name: d.name,
+                bodyArea: d.bodyArea,
+                notes: d.notes,
+                time: d.time,
+                followUpAt: d.followUpAt!,
+              })),
+          );
         }
       } catch (e) {
         console.warn('HomePage: failed to load health entries', e);
@@ -124,6 +144,12 @@ export default function HomePage({ onNavigate, userName }: HomePageProps) {
         <p className="home-greeting">{greeting}</p>
         <h2 className="home-question">How can I help?</h2>
       </div>
+
+      {/* ── Follow-ups Bea promised during a voice log ── */}
+      <CheckInCard
+        items={checkIns}
+        onAnswered={id => setCheckIns(prev => prev.filter(c => c.id !== id))}
+      />
 
       {/* ── Next medication reminder ── */}
       {nextMed && (

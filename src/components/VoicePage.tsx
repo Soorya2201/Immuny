@@ -1,59 +1,74 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import type { Page } from '../types';
 import beaImg from '../assets/bea.png';
 import { toLocalDatetimeInputValue } from '../utils/formatTime';
+import { cancelSpeech, primeVoices, speak } from '../utils/speech';
+import {
+  applyAnswer,
+  draftToPayload,
+  localExtract,
+  needsBodyArea,
+  nextSlot,
+  openingSeverity,
+  parseOnset,
+  parseSeverity,
+  remainingCount,
+  stashUnparsed,
+  toFiveScale,
+  type EntryDraft,
+  type EntryType,
+  type Slot,
+  type SlotKey,
+} from '../utils/voiceInterview';
 
 const client = generateClient<Schema>();
 
 const GROQ_API_KEY = (import.meta.env.VITE_GROQ_API_KEY as string | undefined) ?? '';
 
-type RecordingStatus =
+// ── Listening thresholds ─────────────────────────────────────────────────────
+// The mic closes itself once you stop talking, so a five-question interview
+// doesn't need ten taps. Tapping the mic always stops it early.
+const SPEECH_RMS = 0.045;    // above this counts as speech, not room noise
+const SILENCE_MS = 1600;     // hang up this long after the last speech
+const MIN_LISTEN_MS = 1200;  // never close before this, even on a quiet answer
+const MAX_LISTEN_MS = 20_000;
+const NO_SPEECH_MS = 7000;   // nothing heard at all → re-prompt without a round trip
+
+/** Two failed parses of the same question and we keep the raw words instead. */
+const MAX_RETRIES = 2;
+
+type Phase =
   | 'idle'
-  | 'recording'
+  | 'listening'
   | 'transcribing'
-  | 'analyzing'
-  | 'confirming'
+  | 'thinking'
+  | 'speaking'
+  | 'review'
   | 'saving'
   | 'done'
   | 'error';
 
-interface ExtractedEntry {
-  type: 'Symptom' | 'Exposure' | 'Medication';
-  name: string;
-  severity?: number | null;
-  notes?: string | null;
+interface Turn {
+  role: 'bea' | 'you';
+  text: string;
 }
 
 interface VoicePageProps {
   onNavigate: (page: Page) => void;
 }
 
-const STATUS_LABEL: Record<RecordingStatus, string> = {
-  idle: 'Tap the mic to log a health entry by voice',
-  recording: 'Listening… tap to stop',
-  transcribing: 'Transcribing your voice…',
-  analyzing: 'Bea is understanding your entry…',
-  confirming: 'Does this look correct?',
-  saving: 'Saving to your health log…',
-  done: 'Saved to your log!',
-  error: 'Something went wrong',
-};
+const OPENING_QUESTION = 'What would you like to log?';
 
 const EXAMPLE_PROMPTS = [
-  '"I have hives on my arm, severity 6 out of 10"',
+  '"I have a rash on my arm"',
   '"I just ate a peanut butter sandwich"',
   '"I took 25mg of Benadryl for my rash"',
 ];
 
 function getSupportedMimeType(): string {
-  const types = [
-    'audio/webm;codecs=opus',
-    'audio/webm',
-    'audio/ogg;codecs=opus',
-    'audio/mp4',
-  ];
+  const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg;codecs=opus', 'audio/mp4'];
   for (const t of types) {
     if (MediaRecorder.isTypeSupported(t)) return t;
   }
@@ -80,32 +95,109 @@ async function transcribeWithGroq(blob: Blob, mimeType: string): Promise<string>
   return (data.text ?? '').trim();
 }
 
-function parseExtractedEntries(raw: string): ExtractedEntry[] {
-  const cleaned = raw.replace(/```json\n?|```\n?/g, '').trim();
+// ─── Opening-sentence understanding ──────────────────────────────────────────
+// Only the FIRST sentence goes to the model, and only to work out what kind of
+// entry this is and what it's called. Everything it returns is re-validated
+// with the same deterministic parsers used for the spoken answers.
+
+const EXTRACT_INSTRUCTION =
+  'Extract one health log entry from the transcript. ' +
+  'Reply with exactly this JSON shape and nothing else: ' +
+  '{"type":"Symptom|Exposure|Medication","name":"short label","bodyArea":"string or null",' +
+  '"severityPhrase":"the words describing how bad it is, or null",' +
+  '"onsetPhrase":"the words describing when it started, or null",' +
+  '"notes":"string or null"}. ' +
+  'name must be 1-4 words (e.g. "Rash", "Peanut butter sandwich", "Benadryl"). ' +
+  'Use null for anything the user did not say.';
+
+interface RawExtraction {
+  type?: string;
+  name?: string;
+  bodyArea?: string | null;
+  severityPhrase?: string | null;
+  onsetPhrase?: string | null;
+  notes?: string | null;
+}
+
+function parseJsonObject(raw: string): RawExtraction | null {
+  const cleaned = raw.replace(/```json\n?|```/g, '').trim();
   const start = cleaned.indexOf('{');
-  if (start === -1) return [];
+  const end = cleaned.lastIndexOf('}');
+  if (start === -1 || end <= start) return null;
   try {
-    const parsed = JSON.parse(cleaned.slice(start)) as { entries?: unknown[] };
-    const entries = parsed.entries ?? [];
-    return entries.filter((e): e is ExtractedEntry => {
-      if (typeof e !== 'object' || e === null) return false;
-      const entry = e as Record<string, unknown>;
-      return (
-        (entry.type === 'Symptom' || entry.type === 'Exposure' || entry.type === 'Medication') &&
-        typeof entry.name === 'string' &&
-        entry.name.trim() !== ''
-      );
-    });
+    return JSON.parse(cleaned.slice(start, end + 1)) as RawExtraction;
   } catch {
-    return [];
+    return null;
   }
 }
 
-function WaveAnimation() {
+async function understandOpening(transcript: string): Promise<EntryDraft> {
+  let raw = '';
+  try {
+    const result = await client.queries.askNovaMicro({
+      question: EXTRACT_INSTRUCTION,
+      context: `Transcript: "${transcript}"`,
+      history: '[]',
+      mode: 'extract',
+    });
+    raw = String(result.data ?? '');
+  } catch {
+    // The `mode` argument ships with this change; if the backend hasn't caught
+    // up yet, fall back to the call shape it already knows.
+    try {
+      const legacy = await client.queries.askNovaMicro({
+        question: EXTRACT_INSTRUCTION,
+        context: `Transcript: "${transcript}"`,
+        history: '[]',
+      });
+      raw = String(legacy.data ?? '');
+    } catch {
+      raw = '';
+    }
+  }
+
+  const parsed = parseJsonObject(raw);
+  const fallback = localExtract(transcript);
+
+  const type: EntryType =
+    parsed?.type === 'Symptom' || parsed?.type === 'Exposure' || parsed?.type === 'Medication'
+      ? parsed.type
+      : fallback.type;
+
+  const name = (parsed?.name ?? '').trim() || fallback.name;
+  const draft: EntryDraft = { type, name: name.slice(0, 60) };
+
+  if (parsed?.bodyArea && type === 'Symptom' && needsBodyArea(name)) {
+    draft.bodyArea = parsed.bodyArea.trim().slice(0, 40);
+  }
+
+  // Severity/onset are re-parsed here rather than trusted as numbers from the
+  // model — this is where the old flow silently lost the severity.
+  const severity = parsed?.severityPhrase
+    ? parseSeverity(parsed.severityPhrase)
+    : openingSeverity(transcript);
+  if (severity != null) draft.severity = severity;
+
+  const startedAt = parseOnset(parsed?.onsetPhrase ?? '') ?? parseOnset(transcript);
+  if (startedAt) draft.startedAt = startedAt;
+
+  if (parsed?.notes && parsed.notes.trim()) draft.notes = parsed.notes.trim().slice(0, 500);
+
+  return draft;
+}
+
+// ─── UI bits ─────────────────────────────────────────────────────────────────
+function WaveAnimation({ level }: { level: number }) {
+  // Bars track the mic input so it's obvious Bea is actually hearing you.
+  const scales = [0.45, 0.75, 1, 0.75, 0.45];
   return (
     <div className="voice-wave" aria-hidden="true">
-      {[0, 1, 2, 3, 4].map(i => (
-        <div key={i} className={`voice-wave-bar voice-wave-bar--${i}`} />
+      {scales.map((weight, i) => (
+        <div
+          key={i}
+          className={`voice-wave-bar voice-wave-bar--${i} voice-wave-bar--live`}
+          style={{ transform: `scaleY(${Math.max(0.25, Math.min(1, 0.25 + level * 9 * weight))})` }}
+        />
       ))}
     </div>
   );
@@ -116,153 +208,392 @@ function Spinner() {
 }
 
 export default function VoicePage({ onNavigate }: VoicePageProps) {
-  const [status, setStatus] = useState<RecordingStatus>('idle');
-  const [transcript, setTranscript] = useState('');
-  const [savedItems, setSavedItems] = useState<string[]>([]);
-  const [pendingEntries, setPendingEntries] = useState<ExtractedEntry[]>([]);
+  const [phase, setPhase] = useState<Phase>('idle');
+  const [turns, setTurns] = useState<Turn[]>([]);
+  const [draft, setDraft] = useState<EntryDraft | null>(null);
+  const [activeSlot, setActiveSlot] = useState<Slot | null>(null);
+  const [level, setLevel] = useState(0);
+  const [muted, setMuted] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
+  const [savedSummary, setSavedSummary] = useState<string[]>([]);
 
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  // Async callbacks (recorder/TTS) read the live values through refs.
+  const draftRef = useRef<EntryDraft | null>(null);
+  const slotRef = useRef<Slot | null>(null);
+  const askedRef = useRef<SlotKey[]>([]);
+  const retriesRef = useRef(0);
+  const mutedRef = useRef(false);
+  const abortedRef = useRef(false);
+
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-  const mimeTypeRef = useRef<string>('');
+  const mimeTypeRef = useRef('');
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const meterTimerRef = useRef<number | null>(null);
+  const heardSpeechRef = useRef(false);
+
+  useEffect(() => { mutedRef.current = muted; }, [muted]);
+  useEffect(() => { primeVoices(); }, []);
+
+  const pushTurn = useCallback((role: Turn['role'], text: string) => {
+    setTurns(prev => [...prev, { role, text }].slice(-8));
+  }, []);
+
+  // ── Mic teardown ───────────────────────────────────────────────────────────
+  const teardownMeter = useCallback(() => {
+    if (meterTimerRef.current != null) {
+      window.clearInterval(meterTimerRef.current);
+      meterTimerRef.current = null;
+    }
+    audioCtxRef.current?.close().catch(() => {});
+    audioCtxRef.current = null;
+    setLevel(0);
+  }, []);
+
+  const releaseMic = useCallback(() => {
+    streamRef.current?.getTracks().forEach(t => t.stop());
+    streamRef.current = null;
+  }, []);
+
+  const stopListening = useCallback(() => {
+    const rec = recorderRef.current;
+    teardownMeter();
+    if (rec && rec.state !== 'inactive') rec.stop();   // onstop drives the next step
+    releaseMic();
+  }, [releaseMic, teardownMeter]);
 
   useEffect(() => {
     return () => {
-      const rec = mediaRecorderRef.current;
+      abortedRef.current = true;
+      cancelSpeech();
+      const rec = recorderRef.current;
       if (rec && rec.state !== 'inactive') {
+        rec.onstop = null;
         rec.stop();
       }
-      rec?.stream.getTracks().forEach(t => t.stop());
+      teardownMeter();
+      releaseMic();
     };
-  }, []);
+  }, [releaseMic, teardownMeter]);
 
-  const startRecording = async () => {
+  // ── Listening ──────────────────────────────────────────────────────────────
+  const startMeter = useCallback((stream: MediaStream) => {
+    let ctx: AudioContext;
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      ctx = new AudioContext();
+    } catch {
+      return;   // no WebAudio: fall back to the hard cap below
+    }
+    audioCtxRef.current = ctx;
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 1024;
+    ctx.createMediaStreamSource(stream).connect(analyser);
+    const buf = new Uint8Array(analyser.fftSize);
+
+    const startedAt = Date.now();
+    let lastVoiceAt = 0;
+    heardSpeechRef.current = false;
+
+    meterTimerRef.current = window.setInterval(() => {
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0;
+      for (let i = 0; i < buf.length; i++) {
+        const x = (buf[i] - 128) / 128;
+        sum += x * x;
+      }
+      const rms = Math.sqrt(sum / buf.length);
+      setLevel(prev => prev * 0.6 + rms * 0.4);
+
+      const now = Date.now();
+      const elapsed = now - startedAt;
+      if (rms > SPEECH_RMS) {
+        lastVoiceAt = now;
+        heardSpeechRef.current = true;
+      }
+
+      if (elapsed > MAX_LISTEN_MS) stopListening();
+      else if (heardSpeechRef.current && now - lastVoiceAt > SILENCE_MS && elapsed > MIN_LISTEN_MS) stopListening();
+      else if (!heardSpeechRef.current && elapsed > NO_SPEECH_MS) stopListening();
+    }, 100);
+  }, [stopListening]);
+
+  const startListening = useCallback(async () => {
+    if (abortedRef.current) return;
+    let stream: MediaStream;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+    } catch {
+      setErrorMsg('Could not access the microphone. Check the app’s permissions and try again.');
+      setPhase('error');
+      return;
+    }
+    streamRef.current = stream;
+    try {
       const mimeType = getSupportedMimeType();
       mimeTypeRef.current = mimeType;
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       chunksRef.current = [];
-      recorder.ondataavailable = (e) => {
-        if (e.data.size > 0) chunksRef.current.push(e.data);
-      };
-      recorder.onstop = () => void handleRecordingComplete();
-      mediaRecorderRef.current = recorder;
+      heardSpeechRef.current = false;
+      recorder.ondataavailable = e => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.onstop = () => { teardownMeter(); void handleRecordingComplete(); };
+      recorderRef.current = recorder;
       recorder.start(250);
-      setStatus('recording');
-      setTranscript('');
-      setSavedItems([]);
-      setErrorMsg('');
+      setPhase('listening');
+      startMeter(stream);
     } catch {
-      setErrorMsg('Could not access microphone. Please check app permissions.');
-      setStatus('error');
+      // Don't leave the mic hot if the recorder itself failed to start.
+      releaseMic();
+      setErrorMsg('Recording isn’t supported in this browser. Try Chrome or Safari.');
+      setPhase('error');
     }
-  };
+    // handleRecordingComplete is defined below; the ref-based state it reads is
+    // always current, so the stale-closure warning doesn't apply here.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [releaseMic, startMeter, teardownMeter]);
 
-  const stopRecording = () => {
-    const rec = mediaRecorderRef.current;
-    if (!rec || rec.state === 'inactive') return;
-    rec.stop();
-    rec.stream.getTracks().forEach(t => t.stop());
-  };
+  // ── Conversation control ───────────────────────────────────────────────────
+  const askSlot = useCallback(async (slot: Slot, forDraft: EntryDraft, override?: string) => {
+    const question = override ?? slot.ask(forDraft);
+    slotRef.current = slot;
+    setActiveSlot(slot);
+    pushTurn('bea', question);
+    setPhase('speaking');
+    await speak(question, { muted: mutedRef.current });
+    if (abortedRef.current) return;
+    await startListening();
+  }, [pushTurn, startListening]);
 
-  const handleRecordingComplete = async () => {
+  const finishInterview = useCallback(async (finalDraft: EntryDraft) => {
+    draftRef.current = finalDraft;
+    setDraft(finalDraft);
+    slotRef.current = null;
+    setActiveSlot(null);
+    setPhase('review');
+    const line = 'Here’s what I’ve got — tap save if that looks right.';
+    pushTurn('bea', line);
+    await speak(line, { muted: mutedRef.current });
+  }, [pushTurn]);
+
+  const advance = useCallback((next: EntryDraft) => {
+    draftRef.current = next;
+    setDraft(next);
+    const slot = nextSlot(next, askedRef.current);
+    if (!slot) {
+      void finishInterview(next);
+      return;
+    }
+    retriesRef.current = 0;
+    void askSlot(slot, next);
+  }, [askSlot, finishInterview]);
+
+  const resetSession = useCallback(() => {
+    draftRef.current = null;
+    slotRef.current = null;
+    askedRef.current = [];
+    retriesRef.current = 0;
+    setDraft(null);
+    setActiveSlot(null);
+    setTurns([]);
+    setErrorMsg('');
+    setSavedSummary([]);
+  }, []);
+
+  const cancelSession = useCallback(async () => {
+    resetSession();
+    setPhase('idle');
+    const line = 'No problem — nothing was saved.';
+    pushTurn('bea', line);
+    await speak(line, { muted: mutedRef.current });
+  }, [pushTurn, resetSession]);
+
+  /** Single entry point for anything the user "said" — spoken or tapped. */
+  const handleAnswer = useCallback(async (text: string) => {
+    pushTurn('you', text);
+    const current = draftRef.current;
+
+    // First utterance: work out what's being logged.
+    if (!current) {
+      setPhase('thinking');
+      const understood = await understandOpening(text);
+      if (abortedRef.current) return;
+      if (!understood.name) {
+        // Couldn't tell what it was — ask outright rather than guessing.
+        advance({ type: understood.type, name: '' });
+        return;
+      }
+      advance(understood);
+      return;
+    }
+
+    const slot = slotRef.current;
+    if (!slot) return;
+
+    const result = applyAnswer(current, slot.key, text);
+    if (result.status === 'cancel') {
+      void cancelSession();
+      return;
+    }
+    if (result.status === 'retry') {
+      retriesRef.current += 1;
+      if (retriesRef.current > MAX_RETRIES) {
+        // Stop badgering: keep the words verbatim and move on.
+        const stashed = stashUnparsed(current, slot.key, text);
+        askedRef.current = [...askedRef.current, slot.key];
+        advance(stashed);
+        return;
+      }
+      void askSlot(slot, current, result.reprompt);
+      return;
+    }
+
+    askedRef.current = [...askedRef.current, slot.key];
+    advance(result.draft);
+  }, [advance, askSlot, cancelSession, pushTurn]);
+
+  // ── Recording → transcript ─────────────────────────────────────────────────
+  const handleRecordingComplete = useCallback(async () => {
+    const slot = slotRef.current;
+    const reAsk = (line: string) => {
+      if (slot && draftRef.current) void askSlot(slot, draftRef.current, line);
+      else {
+        setErrorMsg(line);
+        setPhase('error');
+      }
+    };
+
+    if (!heardSpeechRef.current) {
+      reAsk('I didn’t hear anything — tap the mic and try again.');
+      return;
+    }
+
     const mimeType = mimeTypeRef.current || 'audio/webm';
     const blob = new Blob(chunksRef.current, { type: mimeType });
-
     if (blob.size < 500) {
-      setErrorMsg('Recording too short — hold the mic button and speak clearly, then release.');
-      setStatus('error');
+      reAsk('That was too short to make out — could you say it again?');
       return;
     }
 
     try {
-      setStatus('transcribing');
+      setPhase('transcribing');
       const text = await transcribeWithGroq(blob, mimeType);
-      setTranscript(text);
-
+      if (abortedRef.current) return;
       if (!text) {
-        setErrorMsg('Could not detect speech. Please speak clearly and try again.');
-        setStatus('error');
+        reAsk('I couldn’t make that out — could you say it again?');
         return;
       }
-
-      setStatus('analyzing');
-      const result = await client.queries.askNovaMicro({
-        question:
-          'Extract health entries from the transcript in context. ' +
-          'Reply ONLY with valid JSON and no other text: ' +
-          '{"entries":[{"type":"Symptom","name":"string","severity":1-10 or null,"notes":"string or null"}]}. ' +
-          'Allowed types: Symptom, Exposure, Medication. If no health data found, return {"entries":[]}.',
-        context: `Voice transcript: "${text}"`,
-        history: '[]',
-      });
-
-      const raw = String(result.data ?? '').trim();
-      const entries = parseExtractedEntries(raw);
-
-      if (entries.length === 0) {
-        setErrorMsg(
-          `Heard: "${text.slice(0, 80)}${text.length > 80 ? '…' : ''}" — ` +
-          'but no health data was found. Try saying something like "I have hives, severity 6 out of 10" or "I ate peanuts".',
-        );
-        setStatus('error');
-        return;
-      }
-
-      // Show the extracted entries for confirmation before saving — lets the
-      // user catch misheard audio instead of it silently landing in the log.
-      setPendingEntries(entries);
-      setStatus('confirming');
+      await handleAnswer(text);
     } catch (err) {
-      console.error('VoicePage error:', err);
+      console.error('VoicePage transcription error:', err);
       setErrorMsg(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
-      setStatus('error');
+      setPhase('error');
     }
-  };
+  }, [askSlot, handleAnswer]);
 
-  const confirmSave = async () => {
-    setStatus('saving');
+  // ── Saving ─────────────────────────────────────────────────────────────────
+  const saveDraft = useCallback(async () => {
+    const finalDraft = draftRef.current;
+    if (!finalDraft) return;
+    setPhase('saving');
+    const payload = draftToPayload(finalDraft);
     try {
-      const now = toLocalDatetimeInputValue(new Date());
-      const labels: string[] = [];
-      for (const entry of pendingEntries) {
-        await client.models.HealthEntry.create({
-          type: entry.type,
-          name: entry.name.trim(),
-          severity: typeof entry.severity === 'number' ? entry.severity : undefined,
-          notes: typeof entry.notes === 'string' && entry.notes.trim() ? entry.notes.trim() : undefined,
-          time: now,
-        });
-        const sev = typeof entry.severity === 'number' ? ` (severity ${entry.severity})` : '';
-        labels.push(`${entry.type}: ${entry.name}${sev}`);
+      try {
+        await client.models.HealthEntry.create(payload);
+      } catch (err) {
+        // The check-in columns deploy alongside this screen; if the backend is
+        // still catching up, save the entry itself rather than losing it.
+        if (!payload.followUpAt) throw err;
+        console.warn('VoicePage: retrying save without check-in fields', err);
+        const withoutCheckIn = { ...payload };
+        delete withoutCheckIn.followUpAt;
+        delete withoutCheckIn.followUpStatus;
+        await client.models.HealthEntry.create(withoutCheckIn);
       }
-      setSavedItems(labels);
-      setPendingEntries([]);
-      setStatus('done');
+
+      const summary = [
+        `${finalDraft.type}: ${finalDraft.name}`,
+        finalDraft.bodyArea ? `Where: ${finalDraft.bodyArea}` : '',
+        typeof finalDraft.severity === 'number' ? `Severity: ${toFiveScale(finalDraft.severity)}/5` : '',
+        finalDraft.startedAt ? `Started: ${new Date(finalDraft.startedAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}` : '',
+        finalDraft.notes ? `Notes: ${finalDraft.notes}` : '',
+        finalDraft.followUp ? 'Bea will check in tomorrow' : '',
+      ].filter(Boolean);
+      setSavedSummary(summary);
+      setPhase('done');
+      const line = finalDraft.followUp
+        ? `Saved. I’ll check in tomorrow to see how the ${finalDraft.name.toLowerCase()} is doing.`
+        : 'Saved to your health log.';
+      pushTurn('bea', line);
+      await speak(line, { muted: mutedRef.current });
     } catch (err) {
       console.error('VoicePage save error:', err);
       setErrorMsg(err instanceof Error ? err.message : 'Could not save. Please try again.');
-      setStatus('error');
+      setPhase('error');
     }
-  };
+  }, [pushTurn]);
 
-  const discardPending = () => {
-    setPendingEntries([]);
-    setStatus('idle');
-    setTranscript('');
-  };
+  // ── Draft editing (the safety net for a misheard answer) ───────────────────
+  const patchDraft = useCallback((patch: Partial<EntryDraft>) => {
+    setDraft(prev => {
+      if (!prev) return prev;
+      const next = { ...prev, ...patch };
+      draftRef.current = next;
+      return next;
+    });
+  }, []);
+
+  // ── Controls ───────────────────────────────────────────────────────────────
+  const beginSession = useCallback(async () => {
+    abortedRef.current = false;
+    resetSession();
+    setPhase('speaking');
+    pushTurn('bea', OPENING_QUESTION);
+    await speak(OPENING_QUESTION, { muted: mutedRef.current });
+    if (abortedRef.current) return;
+    await startListening();
+  }, [pushTurn, resetSession, startListening]);
 
   const handleMicPress = () => {
-    if (status === 'recording') {
-      stopRecording();
-    } else if (status === 'idle' || status === 'done' || status === 'error') {
-      void startRecording();
+    if (phase === 'listening') {
+      stopListening();
+      return;
+    }
+    if (phase === 'speaking') {
+      // Skip Bea's remaining words and start answering right away.
+      cancelSpeech();
+      void startListening();
+      return;
+    }
+    if (phase === 'idle' || phase === 'done' || phase === 'error') {
+      if (draftRef.current && phase === 'error' && slotRef.current) {
+        void askSlot(slotRef.current, draftRef.current);
+      } else {
+        void beginSession();
+      }
     }
   };
 
-  const isProcessing =
-    status === 'transcribing' || status === 'analyzing' || status === 'saving' || status === 'confirming';
+  const handleChip = (label: string) => {
+    if (phase === 'listening') stopListening();
+    cancelSpeech();
+    void handleAnswer(label);
+  };
+
+  const busy = phase === 'transcribing' || phase === 'thinking' || phase === 'saving';
+  const showChips = Boolean((phase === 'listening' || phase === 'speaking') && activeSlot?.chips && draft);
+  const stepsLeft = draft ? remainingCount(draft, askedRef.current) : 0;
+
+  const statusLabel: Record<Phase, string> = {
+    idle: 'Tap the mic and tell me what happened',
+    listening: 'Listening… I’ll stop when you do',
+    transcribing: 'Getting that down…',
+    thinking: 'Working out what to log…',
+    speaking: 'Bea is speaking…',
+    review: 'Check this over before it’s saved',
+    saving: 'Saving to your health log…',
+    done: 'Saved to your log',
+    error: 'Something went wrong',
+  };
 
   return (
     <div className="voice-screen">
@@ -272,63 +603,180 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
         </svg>
       </button>
 
+      <button
+        className="voice-mute-btn"
+        onClick={() => { setMuted(m => !m); cancelSpeech(); }}
+        title={muted ? 'Unmute Bea' : 'Mute Bea'}
+        aria-pressed={muted}
+      >
+        {muted ? (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/>
+          </svg>
+        ) : (
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/>
+            <path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/>
+          </svg>
+        )}
+      </button>
+
       <div className="voice-content">
-        {/* Bea orb — pulses while recording */}
-        <div className={`voice-orb ${status === 'recording' ? 'voice-orb--active' : ''}`}>
+        <div className={`voice-orb ${phase === 'listening' ? 'voice-orb--active' : ''} ${phase === 'speaking' ? 'voice-orb--speaking' : ''}`}>
           <img src={beaImg} alt="Bea" style={{ width: 120, height: 120, objectFit: 'contain' }} />
         </div>
 
-        {/* Wave animation shown only while recording */}
-        {status === 'recording' && <WaveAnimation />}
+        {phase === 'listening' && <WaveAnimation level={level} />}
+        {busy && <Spinner />}
 
-        {/* Spinner shown during processing */}
-        {isProcessing && <Spinner />}
+        <p className="voice-status-label">{statusLabel[phase]}</p>
 
-        <p className="voice-status-label">{STATUS_LABEL[status]}</p>
-
-        {/* Examples of what to say, shown while idle to help people know what to report */}
-        {status === 'idle' && (
+        {phase === 'idle' && turns.length === 0 && (
           <div className="voice-examples">
-            <p className="voice-examples-title">Try saying something like:</p>
+            <p className="voice-examples-title">Just say what happened:</p>
             {EXAMPLE_PROMPTS.map((ex, i) => (
               <p key={i} className="voice-example-item">{ex}</p>
+            ))}
+            <p className="voice-examples-hint">
+              Bea asks the rest — where it is, how bad it is from 1 to 5, when it started,
+              and whether she should check back in tomorrow.
+            </p>
+          </div>
+        )}
+
+        {/* Conversation so far */}
+        {turns.length > 0 && phase !== 'done' && (
+          <div className="voice-thread">
+            {turns.map((t, i) => (
+              <div key={i} className={`voice-turn voice-turn--${t.role} ${i === turns.length - 1 ? 'voice-turn--current' : ''}`}>
+                {t.text}
+              </div>
             ))}
           </div>
         )}
 
-        {/* Show what was heard */}
-        {transcript && status !== 'idle' && (
-          <p className="voice-transcript">"{transcript}"</p>
+        {/* Tappable answers for the current question */}
+        {showChips && (
+          <div className="voice-chips">
+            {activeSlot!.chips!(draft!).map(label => (
+              <button key={label} className="voice-chip" onClick={() => handleChip(label)}>{label}</button>
+            ))}
+            {activeSlot!.optional && (
+              <button className="voice-chip voice-chip--skip" onClick={() => handleChip('skip')}>Skip</button>
+            )}
+          </div>
         )}
 
-        {/* Confirmation step — review extracted entries before saving, so a
-            misheard recording can be caught instead of silently logged. */}
-        {status === 'confirming' && (
-          <div className="voice-confirm-box">
-            {pendingEntries.map((entry, i) => (
-              <div key={i} className="voice-confirm-item">
-                <span className="voice-confirm-type">{entry.type}</span>
-                <span className="voice-confirm-name">
-                  {entry.name}
-                  {typeof entry.severity === 'number' ? ` — severity ${entry.severity}/10` : ''}
-                </span>
+        {(phase === 'listening' || phase === 'speaking' || phase === 'thinking') && draft && stepsLeft > 0 && (
+          <p className="voice-progress">{stepsLeft} quick question{stepsLeft === 1 ? '' : 's'} to go</p>
+        )}
+
+        {/* Review — every answer is editable before anything is written */}
+        {phase === 'review' && draft && (
+          <div className="voice-review">
+            <div className="voice-review-row">
+              <label className="voice-review-label">What</label>
+              <input
+                className="voice-review-input"
+                value={draft.name}
+                onChange={e => patchDraft({ name: e.target.value })}
+              />
+            </div>
+
+            {draft.type === 'Symptom' && needsBodyArea(draft.name) && (
+              <div className="voice-review-row">
+                <label className="voice-review-label">Where</label>
+                <input
+                  className="voice-review-input"
+                  value={draft.bodyArea ?? ''}
+                  placeholder="e.g. left arm"
+                  onChange={e => patchDraft({ bodyArea: e.target.value })}
+                />
               </div>
-            ))}
+            )}
+
+            {draft.type === 'Symptom' && (
+              <div className="voice-review-row">
+                <label className="voice-review-label">How bad (1–5)</label>
+                <div className="voice-severity-row">
+                  {[1, 2, 3, 4, 5].map(n => (
+                    <button
+                      key={n}
+                      className={`voice-severity-btn ${typeof draft.severity === 'number' && toFiveScale(draft.severity) === n ? 'voice-severity-btn--on' : ''}`}
+                      onClick={() => patchDraft({ severity: n * 2 })}
+                    >
+                      {n}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {draft.type === 'Medication' && (
+              <div className="voice-review-row">
+                <label className="voice-review-label">Dose</label>
+                <input
+                  className="voice-review-input"
+                  value={[draft.dose, draft.unit].filter(Boolean).join(' ')}
+                  placeholder="e.g. 25 mg"
+                  onChange={e => {
+                    const [dose, ...rest] = e.target.value.trim().split(/\s+/);
+                    patchDraft({ dose, unit: rest.join(' ') });
+                  }}
+                />
+              </div>
+            )}
+
+            <div className="voice-review-row">
+              <label className="voice-review-label">
+                {draft.type === 'Medication' ? 'Taken at' : draft.type === 'Exposure' ? 'Had at' : 'Started'}
+              </label>
+              <input
+                className="voice-review-input"
+                type="datetime-local"
+                value={draft.startedAt ?? toLocalDatetimeInputValue(new Date())}
+                max={toLocalDatetimeInputValue(new Date())}
+                onChange={e => patchDraft({ startedAt: e.target.value })}
+              />
+            </div>
+
+            <div className="voice-review-row">
+              <label className="voice-review-label">Notes</label>
+              <textarea
+                className="voice-review-input voice-review-textarea"
+                rows={2}
+                value={draft.notes ?? ''}
+                placeholder="Anything else worth remembering"
+                onChange={e => patchDraft({ notes: e.target.value })}
+              />
+            </div>
+
+            {draft.type !== 'Medication' && (
+              <label className="voice-review-checkline">
+                <input
+                  type="checkbox"
+                  checked={!!draft.followUp}
+                  onChange={e => patchDraft({ followUp: e.target.checked })}
+                />
+                <span>Check in tomorrow to see if it has cleared up</span>
+              </label>
+            )}
+
             <div className="voice-confirm-actions">
-              <button className="voice-confirm-btn voice-confirm-btn--yes" onClick={() => void confirmSave()}>
-                Yes, save this
+              <button className="voice-confirm-btn voice-confirm-btn--yes" onClick={() => void saveDraft()}>
+                Save to my log
               </button>
-              <button className="voice-confirm-btn voice-confirm-btn--no" onClick={discardPending}>
-                No, try again
+              <button className="voice-confirm-btn voice-confirm-btn--no" onClick={() => void cancelSession()}>
+                Start over
               </button>
             </div>
           </div>
         )}
 
-        {/* Saved items list */}
-        {status === 'done' && savedItems.length > 0 && (
+        {phase === 'done' && savedSummary.length > 0 && (
           <div className="voice-saved-list">
-            {savedItems.map((item, i) => (
+            {savedSummary.map((item, i) => (
               <div key={i} className="voice-saved-item">
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22c55e" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <polyline points="20 6 9 17 4 12"/>
@@ -339,44 +787,32 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
           </div>
         )}
 
-        {/* Error message */}
-        {status === 'error' && errorMsg && (
-          <p className="voice-error-msg">{errorMsg}</p>
-        )}
+        {phase === 'error' && errorMsg && <p className="voice-error-msg">{errorMsg}</p>}
       </div>
 
-      {/* Controls */}
       <div className="voice-controls">
-        {/* Text chat shortcut */}
-        <button
-          className="voice-side-btn"
-          onClick={() => onNavigate('chat')}
-          title="Switch to text chat"
-        >
+        <button className="voice-side-btn" onClick={() => onNavigate('chat')} title="Switch to text chat">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
           </svg>
         </button>
 
-        {/* Main mic / action button */}
         <button
           className={[
             'voice-mic-btn',
-            status === 'recording' ? 'voice-mic-btn--active' : '',
-            status === 'done' ? 'voice-mic-btn--done' : '',
-            isProcessing ? 'voice-mic-btn--disabled' : '',
+            phase === 'listening' ? 'voice-mic-btn--active' : '',
+            phase === 'done' ? 'voice-mic-btn--done' : '',
+            busy || phase === 'review' ? 'voice-mic-btn--disabled' : '',
           ].filter(Boolean).join(' ')}
           onClick={handleMicPress}
-          disabled={isProcessing}
-          title={status === 'recording' ? 'Tap to stop' : 'Tap to record'}
+          disabled={busy || phase === 'review'}
+          title={phase === 'listening' ? 'Tap to stop' : 'Tap to talk'}
         >
-          {status === 'done' ? (
-            /* Checkmark when saved */
+          {phase === 'done' ? (
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <polyline points="20 6 9 17 4 12"/>
             </svg>
           ) : (
-            /* Mic icon */
             <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -386,12 +822,7 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
           )}
         </button>
 
-        {/* View log shortcut */}
-        <button
-          className="voice-side-btn"
-          onClick={() => onNavigate('symptom-logger')}
-          title="View health log"
-        >
+        <button className="voice-side-btn" onClick={() => onNavigate('symptom-logger')} title="View health log">
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
             <polyline points="14 2 14 8 20 8"/>
@@ -402,10 +833,15 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
         </button>
       </div>
 
-      {/* Log another prompt shown after a successful save */}
-      {status === 'done' && (
-        <button className="voice-log-another" onClick={() => setStatus('idle')}>
-          + Log another entry
+      {phase === 'done' && (
+        <button className="voice-log-another" onClick={() => { resetSession(); setPhase('idle'); }}>
+          + Log something else
+        </button>
+      )}
+
+      {(phase === 'listening' || phase === 'speaking') && (
+        <button className="voice-cancel-link" onClick={() => { stopListening(); cancelSpeech(); void cancelSession(); }}>
+          Cancel
         </button>
       )}
 

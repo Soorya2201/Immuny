@@ -39,6 +39,8 @@ const schema = a.schema({
     ocrIngredients: a.string(),        // raw text extracted from ingredients-label photo(s)
     ocrNutrition: a.string(),          // raw text extracted from nutrition-facts photo
     containsSummary: a.string(),       // "This food contains: peanuts, milk" derived from OCR text
+    followUpAt: a.string(),            // ISO datetime Bea should check back in; null = no check-in
+    followUpStatus: a.string(),        // 'pending' | 'ongoing' | 'resolved'
   }).authorization(allow => [allow.owner()]),
 
   // ── Medications (schedule) ────────────────────────────────────────────────
@@ -144,8 +146,12 @@ const schema = a.schema({
   // ── Nova Micro (fast casual — AWS Bedrock) ───────────────────────────────
   // history: JSON string of last N turns [{ role, content }]
   // context: compact session summary (allergies, current topic, symptoms)
+  // mode:    'chat' (default) or 'extract' — 'extract' swaps the companion
+  //          persona for a terse JSON-only prompt at temperature 0. Without it
+  //          the persona ("write in full, natural sentences") fights callers
+  //          that need structured output, e.g. the voice logger.
   askNovaMicro: a.query()
-    .arguments({ question: a.string(), history: a.string(), context: a.string() })
+    .arguments({ question: a.string(), history: a.string(), context: a.string(), mode: a.string() })
     .returns(a.string())
     .authorization((allow) => [allow.authenticated()])
     .handler(a.handler.function(askNovaMicro)),

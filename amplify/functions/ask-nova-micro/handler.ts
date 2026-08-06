@@ -38,19 +38,34 @@ SCOPE:
 
 You have access to a SESSION CONTEXT block (if provided) that summarizes key facts from this conversation. Use it to stay grounded.`;
 
+// ─── EXTRACTION PROMPT ────────────────────────────────────────────────────────
+// Used when mode === 'extract' (the voice logger). The companion persona above
+// is deliberately NOT applied here: it instructs the model to write full,
+// natural sentences and end with a question, which corrupts JSON output and
+// makes callers that parse the response fall back to "nothing found".
+const EXTRACT_PROMPT = `You are a strict information extractor. You output JSON and nothing else.
+
+Rules:
+- Reply with a single JSON object. No prose, no markdown, no code fences, no explanation.
+- Only include information the user actually stated. Never invent or infer values.
+- Omit any field the user did not mention rather than guessing.`;
+
 export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
     event
 ) => {
     try {
-        const { question, history, context } = event.arguments;
+        const { question, history, context, mode } = event.arguments;
         if (!question) return "Hey! Ask me anything about your allergies or health.";
+
+        const extracting = mode === "extract";
 
         // ── Build system block ──────────────────────────────────────────────────
         // If a session context summary is provided, append it so Nova is fully
         // grounded in what's happened this conversation.
+        const basePrompt = extracting ? EXTRACT_PROMPT : SYSTEM_PROMPT;
         const systemText = context
-            ? `${SYSTEM_PROMPT}\n\n--- SESSION CONTEXT ---\n${context}\n-----------------------`
-            : SYSTEM_PROMPT;
+            ? `${basePrompt}\n\n--- ${extracting ? "INPUT" : "SESSION CONTEXT"} ---\n${context}\n-----------------------`
+            : basePrompt;
 
         // ── Build conversation messages ─────────────────────────────────────────
         const messages: { role: string; content: { text: string }[] }[] = [];
@@ -79,11 +94,17 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
             schemaVersion: "messages-v1",
             system: [{ text: systemText }],
             messages,
-            inferenceConfig: {
-                maxTokens: 300,    // Raised from 80 — allow complete, natural sentences
-                temperature: 0.75, // Slightly creative, still focused
-                topP: 0.92,
-            },
+            inferenceConfig: extracting
+                ? {
+                      maxTokens: 400,   // room for a few extracted entries
+                      temperature: 0,   // extraction must be repeatable, not creative
+                      topP: 1,
+                  }
+                : {
+                      maxTokens: 300,    // Raised from 80 — allow complete, natural sentences
+                      temperature: 0.75, // Slightly creative, still focused
+                      topP: 0.92,
+                  },
         });
 
         const cmd = new InvokeModelCommand({
@@ -97,13 +118,18 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
         const raw = JSON.parse(new TextDecoder().decode(res.body)) as {
             output?: { message?: { content?: { text?: string }[] } };
         };
-        const text =
-            raw.output?.message?.content?.[0]?.text?.trim() ??
-            "I'm here to help! Could you tell me a bit more about what's going on?";
+        const fallback = extracting
+            ? "{}"
+            : "I'm here to help! Could you tell me a bit more about what's going on?";
+        const text = raw.output?.message?.content?.[0]?.text?.trim() ?? fallback;
 
         return text;
     } catch (err) {
         console.error("askNovaMicro error:", err);
-        return "Sorry, I had a moment there! What were you saying about your health?";
+        // Extraction callers parse the response — hand them empty JSON rather
+        // than an apology sentence they'd have to treat as a parse failure.
+        return event.arguments.mode === "extract"
+            ? "{}"
+            : "Sorry, I had a moment there! What were you saying about your health?";
     }
 };

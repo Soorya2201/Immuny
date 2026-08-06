@@ -917,7 +917,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       case 'insights':        return <InsightsPage onNavigate={navigateTo} />;
       case 'community':       return <CommunityPage currentUserId={userId} />;
       case 'profile':         return <ProfilePage />;
-      case 'symptom-logger':  return <SymptomLoggerPage initialTab={symptomLoggerTab} />;
+      case 'symptom-logger':  return <SymptomLoggerPage initialTab={symptomLoggerTab} onNavigate={navigateTo} />;
       case 'exposure-testing': return <ExposureTestingPage initialSection={exposureTestingSection} />;
       case 'resource-hub':     return <ResourceHubPage onNavigate={navigateTo} />;
       case 'medications':      return <MedicationsPage onNavigate={navigateTo} />;
