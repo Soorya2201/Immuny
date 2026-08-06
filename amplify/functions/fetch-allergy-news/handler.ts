@@ -13,8 +13,8 @@ const SEARCH_QUERIES = [
   'allergy treatment',
 ];
 
-const MAX_ARTICLES = 40;
-const RETENTION_DAYS = 30;
+const MAX_ARTICLES = 40;   // candidates considered per scrape run, before the storage cap below
+const MAX_STORED = 25;     // the News tab always shows "what's current" — cap total rows, not just their age
 
 interface ScrapedArticle {
   title: string;
@@ -99,7 +99,7 @@ export const handler = async () => {
   const toCreate = deduped.filter(a => !existingUrls.has(a.url));
 
   const fetchedAt = new Date().toISOString();
-  await Promise.allSettled(
+  const createResults = await Promise.allSettled(
     toCreate.map(a => client.models.NewsArticle.create({
       title: a.title.slice(0, 300),
       url: a.url,
@@ -108,11 +108,21 @@ export const handler = async () => {
       fetchedAt,
     })),
   );
+  const created = createResults
+    .filter(r => r.status === 'fulfilled')
+    .map(r => r.value.data)
+    .filter((d): d is NonNullable<typeof d> => d != null);
 
-  // ── Prune old articles so the table doesn't grow unbounded ─────────────
-  const cutoff = Date.now() - RETENTION_DAYS * 24 * 60 * 60 * 1000;
-  const stale = (existing ?? []).filter(e => new Date(e.publishedAt ?? e.fetchedAt ?? 0).getTime() < cutoff);
-  await Promise.allSettled(stale.map(e => client.models.NewsArticle.delete({ id: e.id })));
+  // ── Keep only the newest MAX_STORED articles, dropping the rest ────────
+  // The News tab should always read as "what's current" — trimmed by count,
+  // not by age, so a slow news week doesn't leave month-old articles sitting
+  // at the top just because nothing newer has pushed them out yet.
+  const all = [...(existing ?? []), ...created];
+  const newestFirst = all
+    .slice()
+    .sort((a, b) => new Date(b.publishedAt ?? b.fetchedAt ?? 0).getTime() - new Date(a.publishedAt ?? a.fetchedAt ?? 0).getTime());
+  const toDelete = newestFirst.slice(MAX_STORED);
+  await Promise.allSettled(toDelete.map(e => client.models.NewsArticle.delete({ id: e.id })));
 
-  console.log(`fetchAllergyNews: created ${toCreate.length}, pruned ${stale.length}`);
+  console.log(`fetchAllergyNews: created ${created.length}, pruned ${toDelete.length}, kept ${Math.min(newestFirst.length, MAX_STORED)}`);
 };
