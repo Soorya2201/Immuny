@@ -84,6 +84,14 @@ new Rule(newsScraperStack, 'FetchAllergyNewsSchedule', {
 // deploy — without this, the News tab would sit empty for 2 days after every
 // fresh deploy. Kick off one run immediately at deploy time; the rule above
 // takes over from there.
+//
+// This has to be best-effort: an AwsCustomResource's onCreate call runs
+// synchronously during the CloudFormation deployment, so if the invoke fails
+// for any reason (an IAM edge case, throttling, a cold-start timeout) the
+// *entire app stack* rolls back with it — a "nice to have" pre-fetch taking
+// down every other deploy. ignoreErrorCodesMatching makes a failed kick-off a
+// no-op instead: the News tab just waits for the Rule above, same as before
+// this optimization existed.
 new AwsCustomResource(newsScraperStack, 'InvokeFetchAllergyNewsOnDeploy', {
   onCreate: {
     service: 'Lambda',
@@ -93,8 +101,15 @@ new AwsCustomResource(newsScraperStack, 'InvokeFetchAllergyNewsOnDeploy', {
       InvocationType: 'Event', // fire-and-forget so this doesn't block deployment
     },
     physicalResourceId: PhysicalResourceId.of('InvokeFetchAllergyNewsOnDeploy'),
+    ignoreErrorCodesMatching: '.*',
   },
-  policy: AwsCustomResourcePolicy.fromSdkCalls({ resources: [newsScraperFn.functionArn] }),
+  policy: AwsCustomResourcePolicy.fromStatements([
+    new PolicyStatement({
+      effect: Effect.ALLOW,
+      actions: ['lambda:InvokeFunction'],
+      resources: [newsScraperFn.functionArn],
+    }),
+  ]),
 });
 
 export default backend;
