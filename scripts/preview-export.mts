@@ -46,14 +46,14 @@ const input: ReportInput = {
   generatedAt: new Date(2026, 7, 4, 10, 0),
 };
 
-// Node has no canvas/DOM, so loadLogo()'s trim can't run here. logo_trimmed_preview.png
+// Node has no canvas/DOM, so loadLogo()'s trim can't run here. logo_header_trimmed_preview.png
 // is a one-time PIL crop of the same near-white/alpha bounding box loadLogo()
 // computes in-browser, so this preview matches what users will actually see.
-const logoBytes = readFileSync(new URL('./logo_trimmed_preview.png', import.meta.url));
+const logoBytes = readFileSync(new URL('./logo_header_trimmed_preview.png', import.meta.url));
 const logo: LogoImage = {
   dataUrl: `data:image/png;base64,${logoBytes.toString('base64')}`,
-  width: 864,
-  height: 529,
+  width: 1046,
+  height: 1338,
 };
 
 const model = buildReport(input);

@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
-import immunyLogo from '../assets/immuny-logo.png';
+// The stacked mascot+wordmark lockup — matches the reference document's
+// header, which is a tall (~0.77 aspect) crop rather than the wide lockup
+// used elsewhere in the app.
+import immunyLogo from '../assets/immuny-logo-header.png';
 import { buildReport, type ReportEntry, type ReportInput, type ReportPatient } from '../utils/clinicalReport';
 import { downloadVisitSummary, loadLogo, type LogoImage } from '../utils/exportPdf';
 import { getActivePatientId, setActivePatientId } from '../utils/activePatient';

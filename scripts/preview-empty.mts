@@ -4,8 +4,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { buildReport, type ReportInput } from '../src/utils/clinicalReport';
 import { renderVisitSummary, type LogoImage } from '../src/utils/exportPdf';
 
-const logoBytes = readFileSync(new URL('./logo_trimmed_preview.png', import.meta.url));
-const logo: LogoImage = { dataUrl: `data:image/png;base64,${logoBytes.toString('base64')}`, width: 864, height: 529 };
+const logoBytes = readFileSync(new URL('./logo_header_trimmed_preview.png', import.meta.url));
+const logo: LogoImage = { dataUrl: `data:image/png;base64,${logoBytes.toString('base64')}`, width: 1046, height: 1338 };
 
 const input: ReportInput = {
   patient: { name: 'New Patient', dateOfBirth: null },
