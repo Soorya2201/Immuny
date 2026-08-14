@@ -2393,27 +2393,50 @@ body {
   cursor: default;
 }
 
-.allergen-status-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  background: var(--status-bar);
+/* A clock face rather than a dot: the same footprint, but it carries how far
+   through its monitoring window a test actually is. Quiet enough to sit in a
+   pill, and it stays still — a moving badge on every row would pull the eye
+   away from the bars, which are the point of the chart. */
+.allergen-clock {
   flex-shrink: 0;
+  overflow: visible;
 }
 
-/* A test that is actually running should read as live, not as one more colour. */
-.allergen-bar-row--testing .allergen-status-dot,
-.allergen-legend-item.allergen-bar-row--testing .allergen-status-dot {
-  animation: allergen-pulse 1.8s ease-in-out infinite;
+.allergen-clock-track {
+  fill: none;
+  stroke: var(--status-bar);
+  stroke-width: 1.25;
+  opacity: 0.4;
 }
 
-@keyframes allergen-pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 169, 31, 0.55); }
-  50%      { box-shadow: 0 0 0 4px rgba(240, 169, 31, 0); }
+.allergen-clock-fill {
+  fill: none;
+  stroke: var(--status-bar);
+  transition: stroke-dasharray 0.45s ease;
+}
+
+/* Nothing recorded reads as a broken outline, so an untested allergen is
+   distinguishable from one whose clock simply has not started. */
+.allergen-bar-row--untested .allergen-clock-track {
+  stroke-dasharray: 1.8 2.4;
+  opacity: 0.55;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .allergen-status-dot { animation: none !important; }
+  .allergen-clock-fill { transition: none; }
+}
+
+/* Visually hidden, still announced. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
 }
 
 .allergen-legend {

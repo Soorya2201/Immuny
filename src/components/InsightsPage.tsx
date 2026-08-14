@@ -85,6 +85,10 @@ export default function InsightsPage({ onNavigate }: InsightsPageProps) {
           allergen: t.allergen,
           status: t.status,
           reactions: t.reactions ?? null,
+          // Feed the allergen chart's progress clocks.
+          testDate: t.testDate ?? null,
+          testTime: t.testTime ?? null,
+          monitoringDuration: t.monitoringDuration ?? null,
         }));
 
         const summary = buildDataSummary(safeEntries, safeTests);

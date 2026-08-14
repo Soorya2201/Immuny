@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { buildAllergenChartData, buildDataSummary, parseInsights, resolveAllergenStatus } from '../utils/parseInsights';
+import {
+  buildAllergenChartData,
+  buildDataSummary,
+  parseDurationHours,
+  parseInsights,
+  resolveAllergenProgress,
+  resolveAllergenStatus,
+  testProgress,
+} from '../utils/parseInsights';
 import type { HealthEntrySummaryRow, ExposureTestSummaryRow } from '../utils/parseInsights';
 
 const TIME = '2024-06-15T10:00:00Z';
@@ -135,5 +143,86 @@ describe('allergen testing status', () => {
       [],
     );
     expect(bars[0].status).toBe('untested');
+  });
+});
+
+describe('monitoring-window progress', () => {
+  // 10:00 on the day of the test, so elapsed time is exact and deterministic.
+  const START = { testDate: '2026-08-14', testTime: '10:00' };
+  const at = (h: number, m = 0) => new Date(2026, 7, 14, h, m);
+
+  const active = (over: Partial<ExposureTestSummaryRow> = {}): ExposureTestSummaryRow =>
+    ({ allergen: 'Milk', status: 'active', reactions: null, ...START, monitoringDuration: '8 hours', ...over });
+
+  it('reads the duration options the test form offers', () => {
+    expect(parseDurationHours('1 hour')).toBe(1);
+    expect(parseDurationHours('8 hours')).toBe(8);
+    expect(parseDurationHours('24 hours')).toBe(24);
+    expect(parseDurationHours('45 minutes')).toBeCloseTo(0.75);
+  });
+
+  it('returns null for a duration it cannot read', () => {
+    for (const bad of ['', '   ', 'a while', 'overnight', '0 hours', null, undefined]) {
+      expect(parseDurationHours(bad)).toBeNull();
+    }
+  });
+
+  it('tracks elapsed time through the window', () => {
+    expect(testProgress(active(), at(10))).toBe(0);
+    expect(testProgress(active(), at(12))).toBeCloseTo(0.25);
+    expect(testProgress(active(), at(14))).toBeCloseTo(0.5);
+    expect(testProgress(active(), at(18))).toBe(1);
+  });
+
+  it('clamps rather than exceeding a finished window', () => {
+    expect(testProgress(active(), at(23))).toBe(1);
+  });
+
+  it('reads zero before the test is due to start', () => {
+    expect(testProgress(active(), at(8))).toBe(0);
+  });
+
+  it('reports unknown rather than guessing when the start or duration is missing', () => {
+    expect(testProgress(active({ testTime: null }), at(14))).toBeNull();
+    expect(testProgress(active({ testDate: null }), at(14))).toBeNull();
+    expect(testProgress(active({ monitoringDuration: null }), at(14))).toBeNull();
+    expect(testProgress(active({ testTime: 'half past' }), at(14))).toBeNull();
+  });
+
+  it('treats a finished test as complete whatever its outcome', () => {
+    const done = { allergen: 'Milk', status: 'completed' } as ExposureTestSummaryRow;
+    expect(resolveAllergenProgress([done], 'tolerated', at(14))).toBe(1);
+    expect(resolveAllergenProgress([{ ...done, reactions: 'Hives' }], 'reacted', at(14))).toBe(1);
+  });
+
+  it('reports nothing for an allergen that was never tested', () => {
+    expect(resolveAllergenProgress([], 'untested', at(14))).toBeNull();
+  });
+
+  it('sits at zero for a test that is only planned', () => {
+    expect(resolveAllergenProgress([active({ status: 'planned' })], 'planned', at(14))).toBe(0);
+  });
+
+  it('shows the furthest-along test when several are running', () => {
+    const progress = resolveAllergenProgress(
+      [active({ monitoringDuration: '24 hours' }), active({ monitoringDuration: '8 hours' })],
+      'testing',
+      at(14),
+    );
+    expect(progress).toBeCloseTo(0.5);
+  });
+
+  it('is unknown, not zero, when a running test has no window recorded', () => {
+    expect(resolveAllergenProgress([active({ monitoringDuration: null })], 'testing', at(14))).toBeNull();
+  });
+
+  it('puts the progress on the chart bar', () => {
+    const bars = buildAllergenChartData(
+      [{ type: 'Exposure', name: 'Milk', time: '2026-08-14T10:00' }],
+      [active()],
+      at(14),
+    );
+    expect(bars[0].progress).toBeCloseTo(0.5);
+    expect(bars[0].status).toBe('testing');
   });
 });

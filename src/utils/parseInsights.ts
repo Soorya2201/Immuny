@@ -15,6 +15,11 @@ export interface ExposureTestSummaryRow {
   allergen: string;
   status: string;
   reactions?: string | null;
+  // Together these give a real completion figure for a test in progress:
+  // how far through its monitoring window it is.
+  testDate?: string | null;        // 'YYYY-MM-DD'
+  testTime?: string | null;        // 'HH:MM' local
+  monitoringDuration?: string | null;  // e.g. '8 hours'
 }
 
 /**
@@ -32,6 +37,15 @@ export interface AllergenBar {
   label: string;
   count: number;
   status: AllergenStatus;
+  /**
+   * How much of the monitoring window has elapsed, 0–1.
+   *
+   * `null` means genuinely unknown — an untested allergen, or a test missing
+   * the start time or duration needed to work it out. It is deliberately not
+   * 0: a clock reading "nothing done yet" is a claim, and we would be making
+   * it up. The chart draws nothing rather than guess.
+   */
+  progress: number | null;
 }
 
 // A completed test records reactions as free text. Absent means nothing was
@@ -58,12 +72,73 @@ export function resolveAllergenStatus(tests: ExposureTestSummaryRow[]): Allergen
   return STATUS_PRECEDENCE.find(s => statuses.includes(s)) ?? 'untested';
 }
 
+/** '8 hours' / '1 hour' / '45 minutes' → hours. Null when it cannot be read. */
+export function parseDurationHours(duration: string | null | undefined): number | null {
+  const text = duration?.trim().toLowerCase();
+  if (!text) return null;
+  // Plurals must be part of the alternative, not left to \b: "8 hours" would
+  // otherwise fail, because the boundary after "hour" lands on the "s".
+  const match = text.match(/([\d.]+)\s*(hours?|hrs?|h|minutes?|mins?|m)\b/);
+  if (!match) return null;
+  const value = parseFloat(match[1]);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return match[2].startsWith('m') ? value / 60 : value;
+}
+
+/** Local start instant of a test. Null unless both date and time are recorded. */
+function testStart(test: ExposureTestSummaryRow): Date | null {
+  const date = test.testDate?.trim();
+  const time = test.testTime?.trim();
+  // Without a time we would have to assume midnight, which overstates progress
+  // by up to a day — better to report "unknown" than to invent a start.
+  if (!date || !time) return null;
+  const d = date.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const t = time.match(/^(\d{1,2}):(\d{2})$/);
+  if (!d || !t) return null;
+  const start = new Date(+d[1], +d[2] - 1, +d[3], +t[1], +t[2]);
+  return Number.isNaN(start.getTime()) ? null : start;
+}
+
+/** How far through its monitoring window a single test is, 0–1, or null. */
+export function testProgress(test: ExposureTestSummaryRow, now: Date = new Date()): number | null {
+  const hours = parseDurationHours(test.monitoringDuration);
+  const start = testStart(test);
+  if (hours === null || start === null) return null;
+  const elapsed = now.getTime() - start.getTime();
+  if (elapsed <= 0) return 0;   // scheduled for later today
+  return Math.min(1, elapsed / (hours * 3_600_000));
+}
+
+/**
+ * Completion for the allergen as a whole.
+ *
+ * A finished test is done regardless of its outcome, so both 'reacted' and
+ * 'tolerated' read as full. Of several tests underway, the furthest along is
+ * shown — that is the one whose window closes first.
+ */
+export function resolveAllergenProgress(
+  tests: ExposureTestSummaryRow[],
+  status: AllergenStatus,
+  now: Date = new Date(),
+): number | null {
+  if (status === 'untested') return null;
+  if (status === 'reacted' || status === 'tolerated') return 1;
+  if (status === 'planned') return 0;
+
+  const running = tests
+    .filter(t => t.status === 'active')
+    .map(t => testProgress(t, now))
+    .filter((p): p is number => p !== null);
+  return running.length > 0 ? Math.max(...running) : null;
+}
+
 // Aggregates allergen/food/symptom names into frequency counts for the Insights chart.
 // Symptom + Exposure entry names and ExposureTest allergens are pooled together since
 // they all describe things the user reacted to or tested.
 export function buildAllergenChartData(
   entries: HealthEntrySummaryRow[],
   tests: ExposureTestSummaryRow[],
+  now: Date = new Date(),
 ): AllergenBar[] {
   // Keyed case-insensitively: "Milk" logged as an exposure and "milk" typed on
   // a test are the same food to the person tracking it, and counting them
@@ -95,11 +170,11 @@ export function buildAllergenChartData(
   return Object.entries(freq)
     .sort((a, b) => b[1].count - a[1].count)
     .slice(0, 5)
-    .map(([key, { label, count }]) => ({
-      label,
-      count,
-      status: resolveAllergenStatus(testsByAllergen[key] ?? []),
-    }));
+    .map(([key, { label, count }]) => {
+      const own = testsByAllergen[key] ?? [];
+      const status = resolveAllergenStatus(own);
+      return { label, count, status, progress: resolveAllergenProgress(own, status, now) };
+    });
 }
 
 export function buildDataSummary(
