@@ -78,7 +78,7 @@ export default function WatchStatus({ connected, vitals, alertLevel }: {
               <VitalRow label="❤️ Heart Rate"  value={vitals.heart_rate}       unit="bpm"  warn={v => v > 100} danger={v => v > 110} />
               <VitalRow label="🫁 SpO2"         value={vitals.spo2}             unit="%"    warn={v => v < 96}  danger={v => v < 94}  />
               <VitalRow label="💨 Resp. Rate"  value={vitals.respiratory_rate} unit="/min" warn={v => v > 18}  danger={v => v > 22}  />
-              <VitalRow label="🌡️ Skin Temp"  value={vitals.skin_temp}        unit="°C"   warn={_ => false}   danger={_ => false}   />
+              <VitalRow label="🌡️ Skin Temp"  value={vitals.skin_temp}        unit="°C"   warn={() => false} danger={() => false}   />
             </div>
           )}
           {!connected && <p style={{ fontSize: 11, color: '#9CA3AF', marginTop: 8 }}>Make sure the Colab API is running and ngrok URL is set.</p>}

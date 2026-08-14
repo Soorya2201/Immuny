@@ -6,6 +6,7 @@ import beaImg from '../assets/bea.png';
 import { buildAllergenChartData, buildDataSummary, parseInsights } from '../utils/parseInsights';
 import type { AllergenBar, InsightCard } from '../utils/parseInsights';
 import AllergenChart from './AllergenChart';
+import { useActivePatient } from '../contexts/useActivePatient';
 import { AlertTriangleIcon, ArrowRightIcon, BarChartIcon, ClipboardIcon, LightbulbIcon } from './icons';
 
 const client = generateClient<Schema>();
@@ -55,6 +56,7 @@ interface InsightsPageProps {
 }
 
 export default function InsightsPage({ onNavigate }: InsightsPageProps) {
+  const { activeId } = useActivePatient();
   const [state, setState] = useState<InsightsState>({
     cards: [],
     raw: '',
@@ -75,12 +77,16 @@ export default function InsightsPage({ onNavigate }: InsightsPageProps) {
 
         if (cancelled) return;
 
-        const safeEntries = (entries ?? []).map(e => ({
-          type: e.type,
-          name: e.name,
-          severity: e.severity ?? null,
-          time: e.time,
-        }));
+        // Insights are a claim about one person's patterns. Pooling a household
+        // would invent correlations between two children's unrelated symptoms.
+        const safeEntries = (entries ?? [])
+          .filter(e => (e.familyMemberId ?? undefined) === activeId)
+          .map(e => ({
+            type: e.type,
+            name: e.name,
+            severity: e.severity ?? null,
+            time: e.time,
+          }));
         const safeTests = (tests ?? []).map(t => ({
           allergen: t.allergen,
           status: t.status,
@@ -134,7 +140,7 @@ export default function InsightsPage({ onNavigate }: InsightsPageProps) {
     })();
 
     return () => { cancelled = true; };
-  }, []);
+  }, [activeId]);
 
   return (
     <div className="insights-screen">

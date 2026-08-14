@@ -20,20 +20,53 @@ import type { Page } from '../types';
 import { toLocalDatetimeInputValue } from '../utils/formatTime';
 import { COMMON_ALLERGENS } from '../utils/allergens';
 import { buildContainsSummary, detectAllergensInText } from '../utils/ocr';
+import { useActivePatient } from '../contexts/useActivePatient';
 
 const client = generateClient<Schema>();
+
+/**
+ * Tags are stored as a JSON string array. A row written by an older build, or
+ * corrupted in transit, must not take the whole health log down with it — the
+ * list is rendered from a .map, so one throw loses every entry.
+ */
+function parseTags(raw: string | null | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((t): t is string => typeof t === 'string') : undefined;
+  } catch {
+    return undefined;
+  }
+}
 
 function formatTime(iso: string) {
   if (!iso) return '';
   return new Date(iso).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+// Spelled out rather than closed with an index signature: the catch-all let
+// any misspelled field read as valid, and a typo here surfaces as a silently
+// blank row in someone's health log rather than an error.
 interface HealthEntry {
   id: string;
   type: 'Exposure' | 'Symptom' | 'Medication';
   name: string;
   time: string;
-  [key: string]: any;
+  severity?: number | null;
+  bodyArea?: string | null;
+  notes?: string | null;
+  subtype?: string | null;
+  details?: string | null;
+  tags?: string[];                   // parsed here; stored as a JSON string
+  dose?: string | null;
+  unit?: string | null;
+  route?: string | null;
+  reason?: string | null;
+  quantity?: string | null;
+  quantityUnit?: string | null;
+  ocrIngredients?: string | null;
+  ocrNutrition?: string | null;
+  containsSummary?: string | null;
 }
 
 const SYMPTOM_LIST = ['Hives', 'Swelling', 'Itching', 'Nausea', 'Vomiting', 'Stomach Pain', 'Difficulty Breathing', 'Dizziness', 'Fatigue', 'Headache', 'Rash', 'Other'];
@@ -127,9 +160,9 @@ function EntryCard({ entry, onDelete, onEdit }: { entry: HealthEntry; onDelete: 
           Quantity: {entry.quantity}{entry.quantityUnit ? ` ${entry.quantityUnit}` : ''}
         </div>
       )}
-      {entry.tags?.length > 0 && (
+      {(entry.tags?.length ?? 0) > 0 && (
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, marginTop: 8 }}>
-          {(typeof entry.tags === 'string' ? JSON.parse(entry.tags) : entry.tags).map((t: string, i: number) => (
+          {entry.tags?.map((t, i) => (
             <span key={i} style={{ background: '#F0F2F5', border: '1px solid #E9EDEF', borderRadius: 12, padding: '2px 8px', fontSize: 11, color: '#667781' }}>{t}</span>
           ))}
         </div>
@@ -176,6 +209,7 @@ interface SymptomLoggerPageProps {
 }
 
 export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLoggerPageProps) {
+  const { activeId } = useActivePatient();
   const now = new Date();
   const [activeTab, setActiveTab] = useState<'Exposure' | 'Symptom' | 'Medication' | 'History'>(initialTab ?? 'Exposure');
   const [entries, setEntries] = useState<HealthEntry[]>([]);
@@ -216,7 +250,11 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
       try {
         const { data } = await client.models.HealthEntry.list();
         if (data) {
-          const mapped: HealthEntry[] = data.map((d: any) => ({
+          // Scoped to whoever the switcher is on: a history mixing two children
+          // is worse than useless when deciding what one of them reacted to.
+          const mapped: HealthEntry[] = data
+            .filter(d => (d.familyMemberId ?? undefined) === activeId)
+            .map(d => ({
             id: d.id,
             type: d.type as HealthEntry['type'],
             subtype: d.subtype ?? undefined,
@@ -224,7 +262,7 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
             severity: d.severity ?? undefined,
             bodyArea: d.bodyArea ?? undefined,
             notes: d.notes ?? undefined,
-            tags: d.tags ? JSON.parse(d.tags) : undefined,
+            tags: parseTags(d.tags),
             details: d.details ?? undefined,
             dose: d.dose ?? undefined,
             unit: d.unit ?? undefined,
@@ -244,12 +282,15 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
       }
       setLoaded(true);
     })();
-  }, []);
+  }, [activeId]);
 
   const addEntry = async (entry: Omit<HealthEntry, 'id'>) => {
     try {
-      const tagsStr = Array.isArray(entry.tags) ? JSON.stringify(entry.tags) : (entry.tags ?? undefined);
+      const tagsStr = entry.tags?.length ? JSON.stringify(entry.tags) : undefined;
       const { data: created } = await client.models.HealthEntry.create({
+        // Without this every hand-logged entry was filed against the account
+        // owner, and the clinician export then named the wrong patient.
+        familyMemberId: activeId ?? null,
         type: entry.type,
         subtype: entry.subtype ?? undefined,
         name: entry.name,
@@ -270,14 +311,7 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
         containsSummary: entry.containsSummary ?? undefined,
       });
       if (created) {
-        const newEntry: HealthEntry = {
-          type: entry.type,
-          name: entry.name,
-          time: entry.time,
-          ...entry,
-          id: created.id as string,
-          tags: entry.tags,
-        };
+        const newEntry: HealthEntry = { ...entry, id: created.id };
         setEntries(prev => [...prev, newEntry]);
       }
       setSavedMsg({ type: 'success', text: 'Saved!' });
@@ -300,7 +334,14 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
 
   const updateEntry = async (id: string, updates: Partial<HealthEntry>) => {
     try {
-      await client.models.HealthEntry.update({ id, ...updates });
+      // tags lives as a parsed array in state but as a JSON string in the
+      // column, so it cannot be spread through untouched.
+      const { tags, ...rest } = updates;
+      await client.models.HealthEntry.update({
+        id,
+        ...rest,
+        ...(tags !== undefined ? { tags: tags.length ? JSON.stringify(tags) : null } : {}),
+      });
       setEntries(prev => prev.map(x => x.id === id ? { ...x, ...updates } : x));
       setSavedMsg({ type: 'success', text: 'Updated!' });
       setTimeout(() => setSavedMsg(null), 2000);

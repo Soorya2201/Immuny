@@ -3,6 +3,7 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import type { Page } from '../types';
 import beaImg from '../assets/bea.png';
+import { useActivePatient } from '../contexts/useActivePatient';
 import { getNextUpcoming } from '../utils/medications';
 import type { TodayDoseEntry } from '../utils/medications';
 import SymptomOverviewCard from './SymptomOverviewCard';
@@ -38,6 +39,7 @@ interface HomePageProps {
 }
 
 export default function HomePage({ onNavigate, userName }: HomePageProps) {
+  const { activeId } = useActivePatient();
   const [healthEntries, setHealthEntries] = useState<HealthEntryRow[]>([]);
   const [checkIns, setCheckIns] = useState<DueCheckIn[]>([]);
   const [testedAllergens, setTestedAllergens] = useState<string[]>([]);
@@ -62,12 +64,14 @@ export default function HomePage({ onNavigate, userName }: HomePageProps) {
       try {
         const { data } = await client.models.HealthEntry.list();
         if (data) {
-          setHealthEntries(data.map(d => ({ type: d.type, time: d.time, severity: d.severity ?? null })));
+          // The home dashboard speaks for whoever the switcher is on.
+          const mine = data.filter(d => (d.familyMemberId ?? undefined) === activeId);
+          setHealthEntries(mine.map(d => ({ type: d.type, time: d.time, severity: d.severity ?? null })));
 
           // Check-ins the voice logger scheduled, once they come due.
           const now = Date.now();
           setCheckIns(
-            data
+            mine
               .filter(d => d.followUpAt && d.followUpStatus !== 'resolved' && new Date(d.followUpAt).getTime() <= now)
               .sort((a, b) => new Date(a.followUpAt!).getTime() - new Date(b.followUpAt!).getTime())
               .map(d => ({
@@ -85,7 +89,7 @@ export default function HomePage({ onNavigate, userName }: HomePageProps) {
         console.warn('HomePage: failed to load health entries', e);
       }
     })();
-  }, []);
+  }, [activeId]);
 
   useEffect(() => {
     (async () => {

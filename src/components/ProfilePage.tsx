@@ -1,6 +1,9 @@
 import { useState, useEffect, type ComponentType } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
+
+type HealthEntryRow = Schema['HealthEntry']['type'];
+type ExposureTestRow = Schema['ExposureTest']['type'];
 import {
   AlertTriangleIcon,
   BarChartIcon,
@@ -227,8 +230,8 @@ export default function ProfilePage() {
 
   // ── Activity data ──
   const [chatLogs, setChatLogs] = useState<ConversationLog[]>([]);
-  const [healthEntries, setHealthEntries] = useState<any[]>([]);
-  const [exposureTests, setExposureTests] = useState<any[]>([]);
+  const [healthEntries, setHealthEntries] = useState<HealthEntryRow[]>([]);
+  const [exposureTests, setExposureTests] = useState<ExposureTestRow[]>([]);
   const [activityLoaded, setActivityLoaded] = useState(false);
 
   // ── Family members ──
@@ -267,7 +270,7 @@ export default function ProfilePage() {
       try {
         const { data } = await client.models.UserProfile.list();
         if (data && data.length > 0) {
-          const p = data[0] as any;
+          const p = data[0];
           setProfileId(p.id);
           setName(p.name ?? '');
           setAge(p.age?.toString() ?? '');
@@ -276,7 +279,12 @@ export default function ProfilePage() {
           setPronouns(p.pronouns ?? '');
           setAvatarKey(p.avatarKey ?? '');
           if (p.notificationPrefs) {
-            try { setNotifPrefs({ ...DEFAULT_PREFS, ...JSON.parse(p.notificationPrefs) }); } catch {}
+            // Stored as free-form JSON, so a malformed value falls back to defaults.
+            try {
+              setNotifPrefs({ ...DEFAULT_PREFS, ...JSON.parse(p.notificationPrefs) });
+            } catch (e) {
+              console.warn('Ignoring unreadable notification preferences', e);
+            }
           }
         }
       } catch (e) { console.warn('Failed to load profile:', e); }
@@ -307,7 +315,7 @@ export default function ProfilePage() {
         // Family members
         const { data: fm } = await client.models.FamilyMember.list();
         if (fm) {
-          setFamilyMembers(fm.map((m: any) => ({
+          setFamilyMembers(fm.map(m => ({
             id: m.id,
             name: m.name,
             relationship: m.relationship,
@@ -490,10 +498,10 @@ export default function ProfilePage() {
   };
 
   // ── Stats ──
-  const symptomCount = healthEntries.filter((e: any) => e.type === 'Symptom').length;
-  const medCount = healthEntries.filter((e: any) => e.type === 'Medication').length;
+  const symptomCount = healthEntries.filter(e => e.type === 'Symptom').length;
+  const medCount = healthEntries.filter(e => e.type === 'Medication').length;
   const testCount = exposureTests.length;
-  const completedTests = exposureTests.filter((t: any) => t.status === 'completed').length;
+  const completedTests = exposureTests.filter(t => t.status === 'completed').length;
   const chatCount = chatLogs.length;
 
   return (
@@ -666,7 +674,7 @@ export default function ProfilePage() {
           </div>
         ) : (
           <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-            {[...healthEntries].reverse().slice(0, 20).map((entry: any) => (
+            {[...healthEntries].reverse().slice(0, 20).map(entry => (
               <div key={entry.id} className="profile-activity-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                   <span className="profile-activity-type" style={{
@@ -710,7 +718,7 @@ export default function ProfilePage() {
           </div>
         ) : (
           <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-            {[...exposureTests].reverse().slice(0, 20).map((test: any) => (
+            {[...exposureTests].reverse().slice(0, 20).map(test => (
               <div key={test.id} className="profile-activity-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
                   <span style={{ fontWeight: 700, fontSize: 14, color: '#111B21' }}>{test.testName}</span>

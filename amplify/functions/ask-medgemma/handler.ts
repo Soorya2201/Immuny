@@ -5,7 +5,6 @@ const COLAB_BASE_URL = "https://available-lifestyle-additional-hunting.trycloudf
 // ──────────────────────────────────────────────────────────────────────────────
 
 const GENERATE_URL = `${COLAB_BASE_URL}/generate`;
-const AGENT_URL = `${COLAB_BASE_URL}/agent/ask`;
 
 export const handler: Schema["askMedGemma"]["functionHandler"] = async (event) => {
   try {

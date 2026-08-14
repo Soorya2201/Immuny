@@ -77,7 +77,7 @@ export default function ExposureTestingPage({ initialSection }: ExposureTestingP
       try {
         const { data } = await client.models.ExposureTest.list();
         if (data) {
-          const mapped: ExposureTest[] = data.map((d: any) => ({
+          const mapped: ExposureTest[] = data.map(d => ({
             id: d.id,
             testName: d.testName,
             allergen: d.allergen,

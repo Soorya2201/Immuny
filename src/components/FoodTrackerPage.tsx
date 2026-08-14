@@ -4,6 +4,7 @@ import type { Schema } from '../../amplify/data/resource';
 import type { Page } from '../types';
 import { toLocalDateInputValue } from '../utils/formatTime';
 import { COMMON_ALLERGENS } from '../utils/allergens';
+import { useActivePatient } from '../contexts/useActivePatient';
 import { buildContainsSummary, detectAllergensInText } from '../utils/ocr';
 import {
   CameraIcon,
@@ -53,6 +54,7 @@ function TimeOfDayIcon({ time }: { time: (typeof TIME_OPTIONS)[number] }) {
 }
 
 export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
+  const { activeId } = useActivePatient();
   const [step, setStep] = useState(1);
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [date, setDate] = useState(toLocalDateInputValue(new Date()));
@@ -131,6 +133,7 @@ export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
       ].filter(Boolean).join(' · ');
 
       await client.models.HealthEntry.create({
+        familyMemberId: activeId ?? null,   // whose meal this was
         type: 'Exposure',
         subtype: 'Meal',
         name: foodText.trim(),
