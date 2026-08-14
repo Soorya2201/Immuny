@@ -229,6 +229,8 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
   const personRef = useRef(person);
   useEffect(() => { personRef.current = person; }, [person]);
 
+  const contentEndRef = useRef<HTMLDivElement>(null);
+
   const [phase, setPhase] = useState<Phase>('idle');
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState<EntryDraft | null>(null);
@@ -256,6 +258,11 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
 
   useEffect(() => { mutedRef.current = muted; }, [muted]);
   useEffect(() => { primeVoices(); }, []);
+
+  // Follow the conversation down as Bea asks and the review card appears.
+  useEffect(() => {
+    contentEndRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [turns, phase, savedSummary]);
 
   const pushTurn = useCallback((role: Turn['role'], text: string) => {
     setTurns(prev => [...prev, { role, text }].slice(-8));
@@ -680,8 +687,14 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
       </div>
 
       <div className="voice-content">
-        <div className={`voice-orb ${phase === 'listening' ? 'voice-orb--active' : ''} ${phase === 'speaking' ? 'voice-orb--speaking' : ''}`}>
-          <img src={beaImg} alt="Bea" style={{ width: 120, height: 120, objectFit: 'contain' }} />
+        <div className={[
+          'voice-orb',
+          phase === 'listening' ? 'voice-orb--active' : '',
+          phase === 'speaking' ? 'voice-orb--speaking' : '',
+          // Give the height back to the conversation once one is underway.
+          turns.length > 0 || phase === 'review' ? 'voice-orb--compact' : '',
+        ].filter(Boolean).join(' ')}>
+          <img src={beaImg} alt="Bea" className="voice-orb-img" />
         </div>
 
         {phase === 'listening' && <WaveAnimation level={level} />}
@@ -930,6 +943,10 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
         )}
 
         {phase === 'error' && errorMsg && <p className="voice-error-msg">{errorMsg}</p>}
+
+        {/* Scroll anchor — keeps the newest question and the review card in
+            view without the user having to chase them. */}
+        <div ref={contentEndRef} />
       </div>
 
       <div className="voice-controls">

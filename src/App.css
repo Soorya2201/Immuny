@@ -3241,23 +3241,57 @@ body {
 
 .voice-content {
   flex: 1;
+  /* Flex items default to min-height:auto, so without this the conversation
+     refuses to shrink, pushes the mic controls past the bottom edge, and
+     .voice-screen's overflow:hidden clips them out of reach. */
+  min-height: 0;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
   display: flex;
   flex-direction: column;
   align-items: center;
-  padding: 80px 24px 0;
+  padding: 80px 24px 12px;
   text-align: center;
 }
 
 .voice-orb {
   width: 200px;
   height: 200px;
+  flex-shrink: 0;
   background: rgba(255, 255, 255, 0.3);
   border: 8px solid rgba(255, 255, 255, 0.85);
   border-radius: 50%;
   display: grid;
   place-items: center;
   margin-bottom: 32px;
-  transition: border-color 0.3s, box-shadow 0.3s;
+  transition: width 0.3s ease, height 0.3s ease, margin-bottom 0.3s ease,
+              border-color 0.3s, box-shadow 0.3s;
+}
+
+.voice-orb-img {
+  width: 120px;
+  height: 120px;
+  object-fit: contain;
+  transition: width 0.3s ease, height 0.3s ease;
+}
+
+/* Once Bea is actually asking questions the orb is decoration and the
+   conversation is the content, so it yields most of its height. */
+.voice-orb--compact {
+  width: 104px;
+  height: 104px;
+  border-width: 5px;
+  margin-bottom: 14px;
+}
+
+.voice-orb--compact .voice-orb-img {
+  width: 62px;
+  height: 62px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .voice-orb, .voice-orb-img { transition: none; }
 }
 
 .voice-orb--active {
@@ -3288,13 +3322,21 @@ body {
   animation: fadeIn 0.3s ease;
 }
 
+/* Pinned to the bottom of the screen: the mic is the only way to answer Bea,
+   so it must never scroll away mid-interview. */
 .voice-controls {
   display: grid;
   grid-template-columns: 54px 108px 54px;
   align-items: center;
   justify-content: center;
   gap: 32px;
-  padding: 24px 0 16px;
+  padding: 16px 0 max(16px, env(safe-area-inset-bottom));
+  flex-shrink: 0;
+  position: relative;
+  z-index: 2;
+  /* The conversation scrolls up to this edge, so fade it out rather than
+     letting text end on a hard line. */
+  background: linear-gradient(180deg, rgba(223, 244, 248, 0) 0%, rgba(223, 244, 248, 0.85) 45%, #dff4f8 100%);
 }
 
 .voice-side-btn {
