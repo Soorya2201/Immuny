@@ -46,10 +46,24 @@ export function patientSeed(p: Pick<Patient, 'id' | 'name'>): string {
  * directly against `HealthEntry.familyMemberId ?? undefined`.
  */
 export async function loadPatients(): Promise<Patient[]> {
-  const [{ data: profiles }, { data: familyMembers }] = await Promise.all([
+  // Settled, not all: the two queries are independent, and losing the family
+  // list should not also cost us the owner. An empty result here would blank
+  // the switcher and strip every chat thread of the person it belongs to, so
+  // this function always returns at least one patient.
+  const [profileResult, familyResult] = await Promise.allSettled([
     client.models.UserProfile.list(),
     client.models.FamilyMember.list(),
   ]);
+
+  if (profileResult.status === 'rejected') {
+    console.warn('Could not load the profile — falling back to a generic owner', profileResult.reason);
+  }
+  if (familyResult.status === 'rejected') {
+    console.warn('Could not load family members — only the owner is selectable', familyResult.reason);
+  }
+
+  const profiles = profileResult.status === 'fulfilled' ? profileResult.value.data : undefined;
+  const familyMembers = familyResult.status === 'fulfilled' ? familyResult.value.data : undefined;
 
   const profile = profiles?.[0];
   const householdHistory = clean(profile?.medicalHistory);

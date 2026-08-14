@@ -29,7 +29,7 @@ import { COMMON_ALLERGENS } from '../utils/allergens';
 import PatientAvatar from './PatientAvatar';
 import { AQUATIC_AVATARS } from '../utils/avatars';
 import { useActivePatient } from '../contexts/useActivePatient';
-import { patientSeed } from '../utils/patients';
+import { firstNameOf } from '../utils/patients';
 import {
   listAllThreads,
   loadMessages,
@@ -64,6 +64,14 @@ interface FamilyMemberData {
 }
 
 const RELATIONSHIPS = ['Spouse', 'Child', 'Parent', 'Sibling', 'Grandparent', 'Other'];
+
+/** A person the Chat Conversations list groups threads under. */
+interface ThreadOwner {
+  id: string | undefined;   // undefined = the profile owner
+  firstName: string;
+  subtitle: string;
+  avatarKey?: string;
+}
 
 // Still read for the "Chat Interactions" stat. The conversations themselves are
 // now rendered from ChatThread/ChatMessage — this DynamoDB log is a 90-day
@@ -240,13 +248,12 @@ export default function ProfilePage() {
 
   // ── Chat threads ──
   const [threads, setThreads] = useState<ChatThreadRecord[]>([]);
-  const [threadFilter, setThreadFilter] = useState<'all' | string>('all');
   const [expandedThreadId, setExpandedThreadId] = useState<string | null>(null);
   const [threadMessages, setThreadMessages] = useState<Record<string, ChatMessageRecord[]>>({});
 
   // The switcher and this page read the same household, so edits here have to
   // push the new list back rather than waiting for a reload.
-  const { patients, reload: reloadPatients } = useActivePatient();
+  const { reload: reloadPatients } = useActivePatient();
 
   // ── Notifications ──
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
@@ -433,13 +440,43 @@ export default function ProfilePage() {
     } catch (e) { console.error('Failed to delete:', e); }
   };
 
-  // ── Chat threads ──
-  const patientFor = (familyMemberId: string | undefined) =>
-    patients.find(p => p.id === familyMemberId);
+  // ── Chat threads, grouped per person ──
+  //
+  // Built from this page's own profile and family-member state rather than the
+  // switcher's context: if that load fails the switcher degrades quietly, but
+  // here it would silently strip every conversation of the person it belongs
+  // to, which is the one thing this section exists to show.
+  const people: ThreadOwner[] = [
+    {
+      id: undefined,
+      firstName: firstNameOf(name || 'Me'),
+      subtitle: 'You',
+      avatarKey,
+    },
+    ...familyMembers.map(fm => ({
+      id: fm.id,
+      firstName: firstNameOf(fm.name),
+      subtitle: [fm.relationship, fm.ageMonths ? `${fm.ageMonths} mo` : fm.age ? `age ${fm.age}` : null]
+        .filter(Boolean).join(' · '),
+      avatarKey: fm.avatarKey,
+    })),
+  ];
 
-  const visibleThreads = threadFilter === 'all'
-    ? threads
-    : threads.filter(t => (t.familyMemberId ?? 'owner') === threadFilter);
+  const groupedThreads = people.map(person => ({
+    person,
+    threads: threads.filter(t => (t.familyMemberId ?? undefined) === person.id),
+  }));
+
+  // Conversations whose person was deleted still deserve a home rather than
+  // vanishing from the history without explanation.
+  const knownIds = new Set(people.map(p => p.id));
+  const orphaned = threads.filter(t => !knownIds.has(t.familyMemberId ?? undefined));
+  if (orphaned.length > 0) {
+    groupedThreads.push({
+      person: { id: '__orphaned__', firstName: 'Removed family member', subtitle: '', avatarKey: undefined },
+      threads: orphaned,
+    });
+  }
 
   // Transcripts are fetched on expand rather than up front — a household with
   // months of history would otherwise pull every message to render a list.
@@ -563,72 +600,58 @@ export default function ProfilePage() {
             No chat conversations yet. Start chatting with Bea!
           </div>
         ) : (
-          <>
-            {patients.length > 1 && (
-              <div className="thread-filter-row">
-                <button
-                  type="button"
-                  className={`thread-filter ${threadFilter === 'all' ? 'active' : ''}`}
-                  onClick={() => setThreadFilter('all')}
-                >
-                  Everyone
-                </button>
-                {patients.map(p => (
-                  <button
-                    key={p.id ?? 'owner'}
-                    type="button"
-                    className={`thread-filter ${threadFilter === (p.id ?? 'owner') ? 'active' : ''}`}
-                    onClick={() => setThreadFilter(p.id ?? 'owner')}
-                  >
-                    <PatientAvatar avatarKey={p.avatarKey} seed={patientSeed(p)} size={22} />
-                    {p.firstName}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            <div style={{ maxHeight: 460, overflowY: 'auto' }}>
-              {visibleThreads.length === 0 ? (
-                <div style={{ textAlign: 'center', padding: 24, color: '#bbb', fontSize: 13 }}>
-                  No conversations for this person yet.
+          <div style={{ maxHeight: 520, overflowY: 'auto' }}>
+            {groupedThreads.map(({ person, threads: personThreads }) => (
+              <div key={person.id ?? 'owner'} className="thread-group">
+                <div className="thread-group-header">
+                  <PatientAvatar avatarKey={person.avatarKey} seed={person.id ?? `owner:${name || 'Me'}`} size={30} />
+                  <span className="thread-group-name">
+                    {person.firstName}
+                    {person.subtitle && <span className="thread-group-sub">{person.subtitle}</span>}
+                  </span>
+                  <span className="thread-group-count">
+                    {personThreads.length || 'none'}
+                  </span>
                 </div>
-              ) : visibleThreads.map(t => {
-                const who = patientFor(t.familyMemberId);
-                const expanded = expandedThreadId === t.id;
-                return (
-                  <div key={t.id} className="profile-activity-card">
-                    <button type="button" className="thread-row" onClick={() => toggleThread(t.id)}>
-                      {who && <PatientAvatar avatarKey={who.avatarKey} seed={patientSeed(who)} size={32} />}
-                      <span style={{ flex: 1, minWidth: 0 }}>
-                        <span style={{ display: 'block', fontWeight: 600, fontSize: 13.5, color: '#111B21' }}>{t.title}</span>
-                        <span style={{ display: 'block', fontSize: 11, color: '#999', marginTop: 2 }}>
-                          {who ? `${who.firstName} · ` : ''}{formatDate(t.lastMessageAt)} · {t.messageCount} message{t.messageCount === 1 ? '' : 's'}
-                        </span>
-                      </span>
-                      <span style={{ display: 'flex', color: '#667781', transition: 'transform 0.2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>
-                        <ChevronDownIcon />
-                      </span>
-                    </button>
 
-                    {expanded && (
-                      <div className="thread-transcript">
-                        {!threadMessages[t.id] ? (
-                          <div style={{ padding: 10, color: '#4A7BA7', fontSize: 12 }}>Loading…</div>
-                        ) : threadMessages[t.id].length === 0 ? (
-                          <div style={{ padding: 10, color: '#bbb', fontSize: 12 }}>No messages saved.</div>
-                        ) : threadMessages[t.id].map(m => (
-                          <div key={m.id} className={`thread-msg ${m.role}`}>
-                            <span className="thread-msg-role">{m.role === 'user' ? 'You' : 'Bea'}</span>
-                            <span>{m.content}</span>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </>
+                {personThreads.length === 0 ? (
+                  <p className="thread-group-empty">No conversations yet.</p>
+                ) : personThreads.map(t => {
+                  const expanded = expandedThreadId === t.id;
+                  return (
+                    <div key={t.id} className="profile-activity-card">
+                      <button type="button" className="thread-row" onClick={() => toggleThread(t.id)}>
+                        <span style={{ flex: 1, minWidth: 0 }}>
+                          <span style={{ display: 'block', fontWeight: 600, fontSize: 13.5, color: '#111B21' }}>{t.title}</span>
+                          <span style={{ display: 'block', fontSize: 11, color: '#999', marginTop: 2 }}>
+                            {formatDate(t.lastMessageAt)} · {t.messageCount} message{t.messageCount === 1 ? '' : 's'}
+                          </span>
+                        </span>
+                        <span style={{ display: 'flex', color: '#667781', transition: 'transform 0.2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>
+                          <ChevronDownIcon />
+                        </span>
+                      </button>
+
+                      {expanded && (
+                        <div className="thread-transcript">
+                          {!threadMessages[t.id] ? (
+                            <div style={{ padding: 10, color: '#4A7BA7', fontSize: 12 }}>Loading…</div>
+                          ) : threadMessages[t.id].length === 0 ? (
+                            <div style={{ padding: 10, color: '#bbb', fontSize: 12 }}>No messages saved.</div>
+                          ) : threadMessages[t.id].map(m => (
+                            <div key={m.id} className={`thread-msg ${m.role}`}>
+                              <span className="thread-msg-role">{m.role === 'user' ? 'You' : 'Bea'}</span>
+                              <span>{m.content}</span>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            ))}
+          </div>
         )}
       </Section>
 

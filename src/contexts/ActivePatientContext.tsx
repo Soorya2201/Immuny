@@ -11,6 +11,10 @@ import { getActivePatientId, setActivePatientId } from '../utils/activePatient';
 import { loadPatients, type Patient } from '../utils/patients';
 import { ActivePatientContext, type ActivePatientValue } from './useActivePatient';
 
+// Shown when the profile cannot be read at all. The switcher is how you know
+// who you are logging for, so it must never disappear.
+const FALLBACK_OWNER: Patient = { id: undefined, isOwner: true, name: 'Me', firstName: 'Me' };
+
 export function ActivePatientProvider({ children }: { children: React.ReactNode }) {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [activeId, setActiveIdState] = useState<string | undefined>(getActivePatientId);
@@ -30,8 +34,11 @@ export function ActivePatientProvider({ children }: { children: React.ReactNode 
         return prev;
       });
     } catch (e) {
+      // loadPatients already degrades internally, so reaching here means
+      // something unexpected. Keep a usable owner rather than an empty list,
+      // which would hide the switcher entirely.
       console.warn('Failed to load the household — falling back to the profile owner', e);
-      setPatients([]);
+      setPatients([FALLBACK_OWNER]);
     } finally {
       setLoading(false);
     }

@@ -23,6 +23,13 @@ function subtitleFor(p: Patient): string {
 
 export default function PatientSwitcher({ onManageFamily }: PatientSwitcherProps) {
   const { patients, activePatient, activeId, setActiveId, loading } = useActivePatient();
+
+  // The switcher must render even if the household could not be read: an
+  // invisible control is worse than a generic one, because its whole job is
+  // telling you who the screen is about before you log anything against them.
+  const current: Patient = activePatient ?? { id: undefined, isOwner: true, name: 'Me', firstName: 'Me' };
+  const options = patients.length > 0 ? patients : [current];
+
   const [open, setOpen] = useState(false);
   const [focusIndex, setFocusIndex] = useState(0);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -37,7 +44,7 @@ export default function PatientSwitcher({ onManageFamily }: PatientSwitcherProps
   // Open on the active row so arrow keys start from where the user already is.
   const toggle = () => {
     if (open) return close();
-    setFocusIndex(Math.max(0, patients.findIndex(p => p.id === activeId)));
+    setFocusIndex(Math.max(0, options.findIndex(p => p.id === activeId)));
     setOpen(true);
   };
 
@@ -62,10 +69,10 @@ export default function PatientSwitcher({ onManageFamily }: PatientSwitcherProps
   const onKeyDown = (e: React.KeyboardEvent) => {
     if (!open) return;
     if (e.key === 'Escape') { e.preventDefault(); close(); return; }
-    if (e.key === 'ArrowDown') { e.preventDefault(); setFocusIndex(i => (i + 1) % patients.length); }
-    if (e.key === 'ArrowUp')   { e.preventDefault(); setFocusIndex(i => (i - 1 + patients.length) % patients.length); }
+    if (e.key === 'ArrowDown') { e.preventDefault(); setFocusIndex(i => (i + 1) % options.length); }
+    if (e.key === 'ArrowUp')   { e.preventDefault(); setFocusIndex(i => (i - 1 + options.length) % options.length); }
     if (e.key === 'Home')      { e.preventDefault(); setFocusIndex(0); }
-    if (e.key === 'End')       { e.preventDefault(); setFocusIndex(patients.length - 1); }
+    if (e.key === 'End')       { e.preventDefault(); setFocusIndex(options.length - 1); }
   };
 
   const choose = (p: Patient) => {
@@ -73,8 +80,8 @@ export default function PatientSwitcher({ onManageFamily }: PatientSwitcherProps
     close();
   };
 
-  // Nothing useful to show until the household is known.
-  if (loading || !activePatient) return <div className="patient-switcher" aria-hidden="true" />;
+  // Only the very first load is blank.
+  if (loading) return <div className="patient-switcher" aria-hidden="true" />;
 
   return (
     <div className="patient-switcher" ref={rootRef} onKeyDown={onKeyDown}>
@@ -85,11 +92,11 @@ export default function PatientSwitcher({ onManageFamily }: PatientSwitcherProps
         onClick={toggle}
         aria-haspopup="menu"
         aria-expanded={open}
-        aria-label={`Tracking ${activePatient.name}. Change person.`}
-        title={`Tracking ${activePatient.name}`}
+        aria-label={`Tracking ${current.name}. Change person.`}
+        title={`Tracking ${current.name}`}
       >
-        <PatientAvatar avatarKey={activePatient.avatarKey} seed={patientSeed(activePatient)} size={28} />
-        <span className="patient-chip-name">{activePatient.firstName}</span>
+        <PatientAvatar avatarKey={current.avatarKey} seed={patientSeed(current)} size={28} />
+        <span className="patient-chip-name">{current.firstName}</span>
         <span className="patient-chip-caret"><ChevronDownIcon /></span>
       </button>
 
@@ -98,7 +105,7 @@ export default function PatientSwitcher({ onManageFamily }: PatientSwitcherProps
           <p className="patient-popover-title">Who is this about?</p>
 
           <div className="patient-popover-list">
-            {patients.map((p, i) => {
+            {options.map((p, i) => {
               const active = p.id === activeId;
               return (
                 <button
