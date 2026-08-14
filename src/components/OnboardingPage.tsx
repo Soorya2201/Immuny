@@ -15,8 +15,11 @@ import {
   WaveformIcon,
 } from './icons';
 import StatusMessage from './StatusMessage';
+import { AQUATIC_AVATARS, avatarFor } from '../utils/avatars';
 
 const client = generateClient<Schema>();
+
+const CHILD_PRONOUNS = ['she/her', 'he/him', 'they/them'];
 
 const CAREGIVER_RELATIONSHIPS = ['Mother', 'Father', 'Guardian', 'Grandparent', 'Other'];
 const CONDITION_CHIPS = ['Asthma', 'Eczema', 'Seasonal Allergies', 'None of these'];
@@ -90,6 +93,8 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
   const [ageUnit, setAgeUnit] = useState<'years' | 'months'>('years');
   const [childAge, setChildAge] = useState('');
   const [childDob, setChildDob] = useState('');
+  const [childPronouns, setChildPronouns] = useState('');
+  const [childAvatarKey, setChildAvatarKey] = useState('');
 
   const [conditions, setConditions] = useState<string[]>([]);
   const [conditionsOther, setConditionsOther] = useState('');
@@ -143,6 +148,9 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
         contactPhone: contactPhone.trim() || undefined,
         medicalHistory: parentAllergyHistory.trim() || undefined,
         onboardingComplete: true,
+        // Stored rather than derived so the caregiver's avatar survives a later
+        // name change; they can pick a different one in Profile.
+        avatarKey: avatarFor(undefined, `owner:${caregiverName || 'Me'}`).key,
       };
       if (existingProfileId) {
         await client.models.UserProfile.update({ id: existingProfileId, ...profilePayload });
@@ -185,6 +193,10 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
           medicalConditions: conditionList.join(', ') || undefined,
           medications: medicationList.join(', ') || undefined,
           notes: allergyNotes.trim() || undefined,
+          // Bea talks *about* this child to the caregiver, so it needs pronouns
+          // from the start rather than guessing from the name.
+          pronouns: childPronouns.trim() || undefined,
+          avatarKey: childAvatarKey || undefined,
         });
       }
 
@@ -333,6 +345,45 @@ export default function OnboardingPage({ existingProfileId, onComplete }: Onboar
                   )}
                 </>
               )}
+            </div>
+
+            <div className="onboarding-field">
+              <label>Pronouns</label>
+              <span className="onboarding-age-hint" style={{ display: 'block', marginBottom: 8 }}>
+                Bea talks about {childName.trim() || 'your child'} to you, so this keeps it from guessing.
+              </span>
+              <div className="onboarding-chip-row">
+                {CHILD_PRONOUNS.map(p => (
+                  <button
+                    key={p}
+                    type="button"
+                    className={`onboarding-chip${childPronouns === p ? ' active' : ''}`}
+                    onClick={() => setChildPronouns(childPronouns === p ? '' : p)}
+                  >
+                    {p}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="onboarding-field">
+              <label>Pick an avatar</label>
+              <div className="avatar-picker" style={{ marginTop: 6 }}>
+                {AQUATIC_AVATARS.map(({ key, label, Icon, tint }) => (
+                  <button
+                    key={key}
+                    type="button"
+                    title={label}
+                    aria-label={label}
+                    aria-pressed={childAvatarKey === key}
+                    onClick={() => setChildAvatarKey(key)}
+                    className={`avatar-picker-option ${childAvatarKey === key ? 'selected' : ''}`}
+                    style={{ color: tint, background: `${tint}1F` }}
+                  >
+                    <Icon size={26} />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         )}

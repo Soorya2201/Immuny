@@ -20,6 +20,9 @@ import {
   parseSeverity,
   parseTreatment,
   parseYesNo,
+  personRefFor,
+  SELF,
+  SLOTS,
   stashUnparsed,
   toFiveScale,
   type EntryDraft,
@@ -204,6 +207,55 @@ describe('slot selection', () => {
     expect(nextSlot(base)?.ask(base)).toBe('Where on your body is the rash?');
     const withArea = { ...base, bodyArea: 'Left arm' };
     expect(nextSlot(withArea)?.ask(withArea)).toBe('On a scale of 1 to 5, how bad is the rash right now?');
+  });
+});
+
+describe('person-aware questions', () => {
+  const maya = personRefFor({ name: 'Maya Patel', pronouns: 'she/her' });
+  const symptom = (key: SlotKey) => SLOTS.Symptom.find(s => s.key === key)!;
+  const draft: EntryDraft = { type: 'Symptom', name: 'Rash' };
+
+  it('defaults to the second person when no person is given', () => {
+    expect(symptom('bodyArea').ask(draft)).toBe('Where on your body is the rash?');
+    expect(symptom('treatment').ask(draft)).toBe('Did you take anything for the rash?');
+    expect(symptom('epinephrine').ask(draft)).toBe('Did you have your epinephrine with you?');
+  });
+
+  it('names the person and uses their pronouns when logging for someone else', () => {
+    expect(symptom('name').ask(draft, maya)).toBe('What are you noticing about Maya right now?');
+    expect(symptom('bodyArea').ask(draft, maya)).toBe("Where on Maya's body is the rash?");
+    expect(symptom('treatment').ask(draft, maya)).toBe('Did Maya take anything for the rash?');
+    expect(symptom('epinephrine').ask(draft, maya)).toBe('Did Maya have her epinephrine to hand?');
+    expect(symptom('emergencyCare').ask(draft, maya))
+      .toBe('Did Maya need urgent care, the emergency room, or an ambulance for this?');
+  });
+
+  it('keeps subject-verb agreement across entry types', () => {
+    const exposure: EntryDraft = { type: 'Exposure', name: 'Peanut butter' };
+    const name = SLOTS.Exposure.find(s => s.key === 'name')!;
+    expect(name.ask(exposure)).toBe('What were you exposed to?');
+    expect(name.ask(exposure, maya)).toBe('What was Maya exposed to?');
+
+    const med: EntryDraft = { type: 'Medication', name: 'Benadryl' };
+    const dose = SLOTS.Medication.find(s => s.key === 'dose')!;
+    expect(dose.ask(med, maya)).toBe('How much benadryl did Maya take?');
+  });
+
+  it('falls back to they/them when pronouns were never given', () => {
+    const unknown = personRefFor({ name: 'Alex' });
+    expect(symptom('epinephrine').ask(draft, unknown)).toBe('Did Alex have their epinephrine to hand?');
+  });
+
+  it('treats the account owner as the second person', () => {
+    const self = personRefFor({ name: 'Soorya', isOwner: true });
+    expect(self).toBe(SELF);
+    expect(symptom('bodyArea').ask(draft, self)).toBe('Where on your body is the rash?');
+  });
+
+  it('names the person in re-prompts too', () => {
+    const retry = applyAnswer(draft, 'epinephrine', 'mmm', new Date(), maya);
+    expect(retry.status).toBe('retry');
+    expect(retry.reprompt).toBe('Just yes or no — did Maya have her epinephrine?');
   });
 });
 

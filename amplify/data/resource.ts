@@ -18,6 +18,8 @@ const schema = a.schema({
     contactEmail: a.string(),
     contactPhone: a.string(),
     onboardingComplete: a.boolean(),
+    pronouns: a.string(),            // 'she/her' | 'he/him' | 'they/them' | free text
+    avatarKey: a.string(),           // aquatic avatar id, e.g. 'octopus'
   }).authorization(allow => [allow.owner()]),
 
   // ── Health entries (Symptom Logger) ────────────────────────────────────────
@@ -104,7 +106,35 @@ const schema = a.schema({
     medicalConditions: a.string(),
     medications: a.string(),
     notes: a.string(),
+    // Bea speaks *about* this person to the caregiver, so it needs their
+    // pronouns explicitly — inferring them from a first name gets people wrong.
+    pronouns: a.string(),                 // 'she/her' | 'he/him' | 'they/them' | free text
+    avatarKey: a.string(),                // aquatic avatar id, e.g. 'seahorse'
   }).authorization(allow => [allow.owner()]),
+
+  // ── Chat threads ─────────────────────────────────────────────────────────
+  // One conversation with Bea, about exactly one person. Threads are per-patient
+  // rather than per-account because a caregiver's chat about one child must not
+  // carry the other child's symptoms into its context.
+  ChatThread: a.model({
+    familyMemberId: a.string(),          // which patient this thread is about; null = profile owner
+    title: a.string(),                   // derived from the first user message
+    startedAt: a.string().required(),    // ISO datetime
+    lastMessageAt: a.string().required(),// ISO datetime — threads are listed by this
+    messageCount: a.integer(),
+  }).authorization(allow => [allow.owner()]),
+
+  // ── Chat messages ────────────────────────────────────────────────────────
+  ChatMessage: a.model({
+    threadId: a.string().required(),
+    familyMemberId: a.string(),          // denormalized so one person's messages are queryable directly
+    role: a.string().required(),         // 'user' | 'assistant'
+    content: a.string().required(),
+    // Named sentAt, not createdAt: Amplify generates createdAt/updatedAt itself
+    // and a field of that name would collide.
+    sentAt: a.string().required(),       // ISO datetime
+  }).secondaryIndexes(index => [index('threadId').sortKeys(['sentAt'])])
+    .authorization(allow => [allow.owner()]),
 
   // ── Community posts ──────────────────────────────────────────────────────
   CommunityPost: a.model({

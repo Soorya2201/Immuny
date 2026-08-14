@@ -5,7 +5,6 @@ import {
   AlertTriangleIcon,
   BarChartIcon,
   BellIcon,
-  CameraIcon,
   CheckCircleIcon,
   ChevronDownIcon,
   ClipboardIcon,
@@ -23,13 +22,24 @@ import {
   UserIcon,
   UsersIcon,
   UtensilsIcon,
-  ZapIcon,
 } from './icons';
 import StatusMessage from './StatusMessage';
 import ExportDataSheet from './ExportDataSheet';
 import { COMMON_ALLERGENS } from '../utils/allergens';
+import PatientAvatar from './PatientAvatar';
+import { AQUATIC_AVATARS } from '../utils/avatars';
+import { useActivePatient } from '../contexts/useActivePatient';
+import { patientSeed } from '../utils/patients';
+import {
+  listAllThreads,
+  loadMessages,
+  type ChatMessageRecord,
+  type ChatThreadRecord,
+} from '../utils/chatThreads';
 
 const client = generateClient<Schema>();
+
+const PRONOUN_PRESETS = ['she/her', 'he/him', 'they/them'];
 
 // ── Types ──
 interface NotificationPrefs {
@@ -49,24 +59,15 @@ interface FamilyMemberData {
   medicalConditions?: string;
   medications?: string;
   notes?: string;
+  pronouns?: string;
+  avatarKey?: string;
 }
 
 const RELATIONSHIPS = ['Spouse', 'Child', 'Parent', 'Sibling', 'Grandparent', 'Other'];
 
-const LOG_TYPE_META: Record<string, { Icon: ComponentType; label: string }> = {
-  user_query: { Icon: UserIcon, label: 'You asked' },
-  medical_response: { Icon: FlaskIcon, label: 'MedGemma' },
-  nova_reply: { Icon: ZapIcon, label: 'Nova' },
-  image_analysis: { Icon: CameraIcon, label: 'Image' },
-};
-
-function LogTypeLabel({ type }: { type: string }) {
-  const meta = LOG_TYPE_META[type];
-  if (!meta) return <>{type}</>;
-  const { Icon, label } = meta;
-  return <><Icon /> {label}</>;
-}
-
+// Still read for the "Chat Interactions" stat. The conversations themselves are
+// now rendered from ChatThread/ChatMessage — this DynamoDB log is a 90-day
+// analytics trail, not a transcript store.
 interface ConversationLog {
   type: string;
   ts: string;
@@ -129,12 +130,89 @@ function Toggle({ label, description, checked, onChange }: {
   );
 }
 
+// ── Pronouns + avatar ──
+// Pronouns are asked for, never inferred: Bea speaks about this person in the
+// third person, and a guess from their name misgenders a real child in text
+// their caregiver reads back.
+function IdentityFields({ pronouns, onPronouns, avatarKey, onAvatar, seed }: {
+  pronouns: string;
+  onPronouns: (v: string) => void;
+  avatarKey: string;
+  onAvatar: (v: string) => void;
+  seed: string;
+}) {
+  const isCustom = !!pronouns && !PRONOUN_PRESETS.includes(pronouns);
+  return (
+    <>
+      <div className="form-group" style={{ marginBottom: 8, gridColumn: '1 / -1' }}>
+        <label style={{ fontSize: 13 }}>Pronouns</label>
+        <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px' }}>
+          Bea uses these when talking about this person, so it never has to guess.
+        </p>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+          {PRONOUN_PRESETS.map(p => (
+            <button
+              key={p}
+              type="button"
+              onClick={() => onPronouns(pronouns === p ? '' : p)}
+              style={{
+                padding: '4px 12px', borderRadius: 16, cursor: 'pointer', fontSize: 12, fontWeight: 600,
+                border: pronouns === p ? '1px solid #4A7BA7' : '1px solid #E9EDEF',
+                background: pronouns === p ? '#4A7BA7' : '#F8FBFF',
+                color: pronouns === p ? '#fff' : '#4A7BA7',
+              }}
+            >
+              {p}
+            </button>
+          ))}
+        </div>
+        <input
+          type="text"
+          value={isCustom ? pronouns : ''}
+          onChange={e => onPronouns(e.target.value)}
+          placeholder="Or type other pronouns"
+        />
+      </div>
+
+      <div className="form-group" style={{ marginBottom: 8, gridColumn: '1 / -1' }}>
+        <label style={{ fontSize: 13 }}>Avatar</label>
+        <div className="avatar-picker">
+          {AQUATIC_AVATARS.map(({ key, label, Icon, tint }) => {
+            const selected = avatarKey ? avatarKey === key : false;
+            return (
+              <button
+                key={key}
+                type="button"
+                title={label}
+                aria-label={label}
+                aria-pressed={selected}
+                onClick={() => onAvatar(key)}
+                className={`avatar-picker-option ${selected ? 'selected' : ''}`}
+                style={{ color: tint, background: `${tint}1F` }}
+              >
+                <Icon size={26} />
+              </button>
+            );
+          })}
+        </div>
+        {!avatarKey && (
+          <p style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#94a3b8', margin: '8px 0 0' }}>
+            <PatientAvatar seed={seed} size={24} /> Using this one until you pick.
+          </p>
+        )}
+      </div>
+    </>
+  );
+}
+
 export default function ProfilePage() {
   // ── Profile fields ──
   const [name, setName] = useState('');
   const [age, setAge] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [medicalHistory, setMedicalHistory] = useState('');
+  const [pronouns, setPronouns] = useState('');
+  const [avatarKey, setAvatarKey] = useState('');
   const [profileId, setProfileId] = useState<string | null>(null);
   const [profileLoaded, setProfileLoaded] = useState(false);
   const [profileMsg, setProfileMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
@@ -157,6 +235,18 @@ export default function ProfilePage() {
   const [fmConditions, setFmConditions] = useState('');
   const [fmMedications, setFmMedications] = useState('');
   const [fmNotes, setFmNotes] = useState('');
+  const [fmPronouns, setFmPronouns] = useState('');
+  const [fmAvatarKey, setFmAvatarKey] = useState('');
+
+  // ── Chat threads ──
+  const [threads, setThreads] = useState<ChatThreadRecord[]>([]);
+  const [threadFilter, setThreadFilter] = useState<'all' | string>('all');
+  const [expandedThreadId, setExpandedThreadId] = useState<string | null>(null);
+  const [threadMessages, setThreadMessages] = useState<Record<string, ChatMessageRecord[]>>({});
+
+  // The switcher and this page read the same household, so edits here have to
+  // push the new list back rather than waiting for a reload.
+  const { patients, reload: reloadPatients } = useActivePatient();
 
   // ── Notifications ──
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
@@ -176,6 +266,8 @@ export default function ProfilePage() {
           setAge(p.age?.toString() ?? '');
           setDateOfBirth(p.dateOfBirth ?? '');
           setMedicalHistory(p.medicalHistory ?? '');
+          setPronouns(p.pronouns ?? '');
+          setAvatarKey(p.avatarKey ?? '');
           if (p.notificationPrefs) {
             try { setNotifPrefs({ ...DEFAULT_PREFS, ...JSON.parse(p.notificationPrefs) }); } catch {}
           }
@@ -218,8 +310,13 @@ export default function ProfilePage() {
             medicalConditions: m.medicalConditions ?? undefined,
             medications: m.medications ?? undefined,
             notes: m.notes ?? undefined,
+            pronouns: m.pronouns ?? undefined,
+            avatarKey: m.avatarKey ?? undefined,
           })));
         }
+
+        // Saved conversations, grouped per person further down.
+        setThreads(await listAllThreads());
       } catch (e) { console.warn('Failed to load activity:', e); }
       setActivityLoaded(true);
     })();
@@ -236,6 +333,8 @@ export default function ProfilePage() {
           age: age ? parseInt(age) : undefined,
           dateOfBirth: dateOfBirth || undefined,
           medicalHistory: medicalHistory || undefined,
+          pronouns: pronouns.trim() || undefined,
+          avatarKey: avatarKey || undefined,
           notificationPrefs: prefsJson,
         });
       } else {
@@ -244,10 +343,13 @@ export default function ProfilePage() {
           age: age ? parseInt(age) : undefined,
           dateOfBirth: dateOfBirth || undefined,
           medicalHistory: medicalHistory || undefined,
+          pronouns: pronouns.trim() || undefined,
+          avatarKey: avatarKey || undefined,
           notificationPrefs: prefsJson,
         });
         if (created) setProfileId(created.id);
       }
+      void reloadPatients();   // the switcher shows the owner's name and avatar
       setProfileMsg({ type: 'success', text: 'Profile saved!' });
       setTimeout(() => setProfileMsg(null), 2000);
     } catch (e) {
@@ -269,6 +371,7 @@ export default function ProfilePage() {
     setEditingFmId(null);
     setFmName(''); setFmRelationship('Child'); setFmAge(''); setFmAllergyChips([]); setFmAllergyOther('');
     setFmConditions(''); setFmMedications(''); setFmNotes(''); setShowAddFamily(false);
+    setFmPronouns(''); setFmAvatarKey('');
   };
 
   const startEditFamilyMember = (fm: FamilyMemberData) => {
@@ -282,6 +385,8 @@ export default function ProfilePage() {
     setFmConditions(fm.medicalConditions ?? '');
     setFmMedications(fm.medications ?? '');
     setFmNotes(fm.notes ?? '');
+    setFmPronouns(fm.pronouns ?? '');
+    setFmAvatarKey(fm.avatarKey ?? '');
     setShowAddFamily(true);
   };
 
@@ -296,6 +401,8 @@ export default function ProfilePage() {
       medicalConditions: fmConditions || undefined,
       medications: fmMedications || undefined,
       notes: fmNotes || undefined,
+      pronouns: fmPronouns.trim() || undefined,
+      avatarKey: fmAvatarKey || undefined,
     };
     try {
       if (editingFmId) {
@@ -305,6 +412,7 @@ export default function ProfilePage() {
         const { data: created } = await client.models.FamilyMember.create(payload);
         if (created) setFamilyMembers(prev => [...prev, { id: created.id, ...payload }]);
       }
+      void reloadPatients();   // keep the switcher in step with this edit
       resetFamilyForm();
       setProfileMsg({ type: 'success', text: editingFmId ? 'Family member updated!' : 'Family member added!' });
       setTimeout(() => setProfileMsg(null), 2000);
@@ -319,7 +427,29 @@ export default function ProfilePage() {
     try {
       await client.models.FamilyMember.delete({ id });
       setFamilyMembers(prev => prev.filter(m => m.id !== id));
+      // The context drops a stale active id, so the switcher falls back to the
+      // profile owner rather than pointing at someone who no longer exists.
+      void reloadPatients();
     } catch (e) { console.error('Failed to delete:', e); }
+  };
+
+  // ── Chat threads ──
+  const patientFor = (familyMemberId: string | undefined) =>
+    patients.find(p => p.id === familyMemberId);
+
+  const visibleThreads = threadFilter === 'all'
+    ? threads
+    : threads.filter(t => (t.familyMemberId ?? 'owner') === threadFilter);
+
+  // Transcripts are fetched on expand rather than up front — a household with
+  // months of history would otherwise pull every message to render a list.
+  const toggleThread = async (id: string) => {
+    if (expandedThreadId === id) return setExpandedThreadId(null);
+    setExpandedThreadId(id);
+    if (!threadMessages[id]) {
+      const msgs = await loadMessages(id);
+      setThreadMessages(prev => ({ ...prev, [id]: msgs }));
+    }
   };
 
   // ── Stats ──
@@ -393,6 +523,13 @@ export default function ProfilePage() {
                 rows={3} placeholder="Known allergies, conditions, medications…"
                 style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8, fontFamily: 'inherit', fontSize: '0.938rem' }} />
             </div>
+            <IdentityFields
+              pronouns={pronouns}
+              onPronouns={setPronouns}
+              avatarKey={avatarKey}
+              onAvatar={setAvatarKey}
+              seed={`owner:${name || 'Me'}`}
+            />
           </>
         )}
       </Section>
@@ -414,40 +551,84 @@ export default function ProfilePage() {
 
       {showExport && <ExportDataSheet onClose={() => setShowExport(false)} />}
 
-      {/* ── Chat History ── */}
-      <Section title="Chat Conversations" icon={MessageCircleIcon} badge={chatCount}>
+      {/* ── Chat History ──
+          Grouped by person, because "what did I tell Bea about this child?" is
+          the question a caregiver actually brings to this page. */}
+      <Section title="Chat Conversations" icon={MessageCircleIcon} badge={threads.length}>
         {!activityLoaded ? (
           <div style={{ textAlign: 'center', padding: 20, color: '#4A7BA7' }}>Loading...</div>
-        ) : chatLogs.length === 0 ? (
+        ) : threads.length === 0 ? (
           <div style={{ textAlign: 'center', padding: 30, color: '#bbb' }}>
             <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 8 }}><MessageCircleIcon /></div>
-            No chat conversations yet. Start chatting with Immuny!
+            No chat conversations yet. Start chatting with Bea!
           </div>
         ) : (
-          <div style={{ maxHeight: 400, overflowY: 'auto' }}>
-            {chatLogs.slice(0, 30).map((log, i) => (
-              <div key={i} className="profile-activity-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 4 }}>
-                  <span className="profile-activity-type" style={{
-                    display: 'flex', alignItems: 'center', gap: 4,
-                    background: log.type === 'user_query' ? '#D9FDD3' : log.type === 'medical_response' ? '#F3E8FF' : '#D1E7F4',
-                    color: log.type === 'user_query' ? '#155724' : log.type === 'medical_response' ? '#7C3AED' : '#4A7BA7',
-                  }}>
-                    <LogTypeLabel type={log.type} />
-                  </span>
-                  <span style={{ fontSize: 11, color: '#999' }}>{formatDate(log.ts)}</span>
-                </div>
-                <div style={{ fontSize: 13, color: '#3B4A54', lineHeight: 1.5 }}>
-                  {log.text || log.question || ''}
-                </div>
-                {(log.response || log.response_preview) && (
-                  <div style={{ fontSize: 12, color: '#667781', marginTop: 4, padding: '6px 10px', background: '#F8F9FA', borderRadius: 6, borderLeft: '3px solid #4A7BA7' }}>
-                    {log.response_preview || log.response?.slice(0, 120)}
-                  </div>
-                )}
+          <>
+            {patients.length > 1 && (
+              <div className="thread-filter-row">
+                <button
+                  type="button"
+                  className={`thread-filter ${threadFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setThreadFilter('all')}
+                >
+                  Everyone
+                </button>
+                {patients.map(p => (
+                  <button
+                    key={p.id ?? 'owner'}
+                    type="button"
+                    className={`thread-filter ${threadFilter === (p.id ?? 'owner') ? 'active' : ''}`}
+                    onClick={() => setThreadFilter(p.id ?? 'owner')}
+                  >
+                    <PatientAvatar avatarKey={p.avatarKey} seed={patientSeed(p)} size={22} />
+                    {p.firstName}
+                  </button>
+                ))}
               </div>
-            ))}
-          </div>
+            )}
+
+            <div style={{ maxHeight: 460, overflowY: 'auto' }}>
+              {visibleThreads.length === 0 ? (
+                <div style={{ textAlign: 'center', padding: 24, color: '#bbb', fontSize: 13 }}>
+                  No conversations for this person yet.
+                </div>
+              ) : visibleThreads.map(t => {
+                const who = patientFor(t.familyMemberId);
+                const expanded = expandedThreadId === t.id;
+                return (
+                  <div key={t.id} className="profile-activity-card">
+                    <button type="button" className="thread-row" onClick={() => toggleThread(t.id)}>
+                      {who && <PatientAvatar avatarKey={who.avatarKey} seed={patientSeed(who)} size={32} />}
+                      <span style={{ flex: 1, minWidth: 0 }}>
+                        <span style={{ display: 'block', fontWeight: 600, fontSize: 13.5, color: '#111B21' }}>{t.title}</span>
+                        <span style={{ display: 'block', fontSize: 11, color: '#999', marginTop: 2 }}>
+                          {who ? `${who.firstName} · ` : ''}{formatDate(t.lastMessageAt)} · {t.messageCount} message{t.messageCount === 1 ? '' : 's'}
+                        </span>
+                      </span>
+                      <span style={{ display: 'flex', color: '#667781', transition: 'transform 0.2s', transform: expanded ? 'rotate(180deg)' : 'none' }}>
+                        <ChevronDownIcon />
+                      </span>
+                    </button>
+
+                    {expanded && (
+                      <div className="thread-transcript">
+                        {!threadMessages[t.id] ? (
+                          <div style={{ padding: 10, color: '#4A7BA7', fontSize: 12 }}>Loading…</div>
+                        ) : threadMessages[t.id].length === 0 ? (
+                          <div style={{ padding: 10, color: '#bbb', fontSize: 12 }}>No messages saved.</div>
+                        ) : threadMessages[t.id].map(m => (
+                          <div key={m.id} className={`thread-msg ${m.role}`}>
+                            <span className="thread-msg-role">{m.role === 'user' ? 'You' : 'Bea'}</span>
+                            <span>{m.content}</span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </>
         )}
       </Section>
 
@@ -545,9 +726,10 @@ export default function ProfilePage() {
           <div>
             {familyMembers.map(fm => (
               <div key={fm.id} className="profile-activity-card">
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10 }}>
+                  <PatientAvatar avatarKey={fm.avatarKey} seed={fm.id} size={40} />
                   <div style={{ flex: 1 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 4 }}>
                       <span style={{ fontWeight: 700, fontSize: 15, color: '#111B21' }}>{fm.name}</span>
                       <span className="profile-activity-type" style={{ background: '#E8F4FD', color: '#4A7BA7' }}>{fm.relationship}</span>
                       {fm.ageMonths ? (
@@ -555,6 +737,7 @@ export default function ProfilePage() {
                       ) : fm.age ? (
                         <span style={{ fontSize: 12, color: '#667781' }}>Age {fm.age}</span>
                       ) : null}
+                      {fm.pronouns && <span style={{ fontSize: 12, color: '#667781' }}>{fm.pronouns}</span>}
                     </div>
                     {fm.knownAllergies && (
                       <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 13, marginTop: 4 }}>
@@ -635,6 +818,13 @@ export default function ProfilePage() {
                 <label style={{ fontSize: 13 }}>Medications</label>
                 <input type="text" value={fmMedications} onChange={e => setFmMedications(e.target.value)} placeholder="e.g., EpiPen, Benadryl" />
               </div>
+              <IdentityFields
+                pronouns={fmPronouns}
+                onPronouns={setFmPronouns}
+                avatarKey={fmAvatarKey}
+                onAvatar={setFmAvatarKey}
+                seed={editingFmId ?? `new:${fmName}`}
+              />
             </div>
             <div className="form-group" style={{ marginBottom: 12 }}>
               <label style={{ fontSize: 13 }}>Notes</label>

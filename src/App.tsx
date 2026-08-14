@@ -19,9 +19,23 @@ import InsightsPage from './components/InsightsPage';
 import VoicePage from './components/VoicePage';
 import CommunityPage from './components/CommunityPage';
 import BottomNav from './components/BottomNav';
+import PatientSwitcher from './components/PatientSwitcher';
+import PatientAvatar from './components/PatientAvatar';
+import { ActivePatientProvider } from './contexts/ActivePatientContext';
+import { useActivePatient } from './contexts/useActivePatient';
 import { ClipboardIcon, MedicalCrossIcon, MicIcon, SendIcon, StopIcon, ThermometerIcon, UtensilsIcon, VolumeIcon } from './components/icons';
 import type { Page } from './types';
 import { toLocalDatetimeInputValue } from './utils/formatTime';
+import { buildSubjectBlock, composeContext, patientSeed, type Patient } from './utils/patients';
+import {
+  appendMessage,
+  createThread,
+  deriveTitle,
+  latestThread,
+  listAllThreads,
+  loadMessages,
+  touchThread,
+} from './utils/chatThreads';
 
 // ── 🔴 WATCH SENSOR FEATURE (COMMENTED OUT — ready for future integration) ──
 // import WatchStatus, { type Vitals } from './components/WatchStatus';
@@ -72,6 +86,17 @@ const INITIAL_SESSION_CONTEXT: SessionContext = {
   turnCount: 0,
 };
 
+// Session memory belongs to one person, not to the account. Switching patients
+// starts a fresh context seeded with that person's recorded allergies, so one
+// child's symptoms can never bleed into a conversation about their sibling.
+const seedSessionContext = (patient: Patient | null): SessionContext => ({
+  ...INITIAL_SESSION_CONTEXT,
+  knownAllergies: (patient?.knownAllergies ?? '')
+    .split(',')
+    .map(s => s.trim().toLowerCase())
+    .filter(Boolean),
+});
+
 // ─── ENTITY EXTRACTORS ────────────────────────────────────────────────────────
 const ALLERGY_FOOD_RE = /\b(shellfish|shrimp|crab|lobster|peanut|nut|dairy|milk|gluten|wheat|soy|egg|fish|sesame|tree nut|latex|bee|wasp|penicillin|aspirin|ibuprofen|sulfa|mold|dust|pollen|cat|dog|pet)s?\b/gi;
 const SYMPTOM_ENTITY_RE = /\b(hives?|swelling|itch(?:ing)?|rash|nausea|vomit(?:ing)?|dizziness|dizzy|wheezing|wheeze|throat tightening|anaphylaxis|cramps?|bloating|stomach pain|difficulty breathing|headache|tingling|redness|bumps?)\b/gi;
@@ -89,11 +114,14 @@ const extractEntities = (text: string) => ({
 
 // ─── CONTEXT SERIALIZER ───────────────────────────────────────────────────────
 // Produces a compact 1-3 sentence summary injected into every Nova call.
+// Phrased about "the subject" rather than "the user": the person these facts
+// describe is whoever the SUBJECT block names, who is often not the person
+// typing.
 const buildContextSummary = (ctx: SessionContext): string | null => {
   if (ctx.turnCount === 0) return null; // no context yet on first turn
   const parts: string[] = [];
   if (ctx.knownAllergies.length > 0)
-    parts.push(`User has known allergies to: ${ctx.knownAllergies.join(', ')}.`);
+    parts.push(`The subject has known allergies to: ${ctx.knownAllergies.join(', ')}.`);
   if (ctx.currentSymptoms.length > 0)
     parts.push(`Symptoms mentioned this session: ${ctx.currentSymptoms.join(', ')}.`);
   if (ctx.currentTopic)
@@ -103,9 +131,9 @@ const buildContextSummary = (ctx: SessionContext): string | null => {
   if (ctx.lastMentionedMedication)
     parts.push(`Medication mentioned: ${ctx.lastMentionedMedication}.`);
   if (ctx.urgencyLevel === 'emergency')
-    parts.push('URGENT: User may be experiencing a severe/emergency reaction.');
+    parts.push('URGENT: the subject may be experiencing a severe/emergency reaction.');
   else if (ctx.urgencyLevel === 'elevated')
-    parts.push('Note: User\'s symptoms may be worsening — stay attentive.');
+    parts.push('Note: the subject\'s symptoms may be worsening — stay attentive.');
   return parts.length > 0 ? parts.join(' ') : null;
 };
 
@@ -135,28 +163,38 @@ const MED_ROUTE_OPTIONS = ['Oral', 'Topical', 'Injectable', 'Inhaled'];
 const MED_UNIT_OPTIONS = ['mg', 'ml', 'mcg', 'oz', 'units', 'puffs'];
 const EXPOSURE_TYPE_OPTIONS = ['Meal', 'Product', 'Environmental', 'Other'];
 
+// `{subject}` and `{possessive}` are filled in with the person being logged —
+// "the user"/"their" when that's the account owner, "Maya"/"Maya's" when a
+// caregiver is logging for someone else. Without this, every question Nova
+// generates asks the caregiver about their own body.
 const FIELD_SCRIPTS: Record<LoggingEntryType, FieldDef[]> = {
   Symptom: [
-    { key: 'name', label: 'Symptom', question: 'Ask the user which symptom they are experiencing. Mention options: Hives, Swelling, Itching, Nausea, Vomiting, Stomach Pain, Difficulty Breathing, Dizziness, Headache, Rash, or Other.', type: 'select', options: SYMPTOM_OPTIONS },
-    { key: 'severity', label: 'Severity', question: 'Ask the user to rate the severity of their symptom on a scale of 1 to 10.', type: 'number' },
-    { key: 'bodyArea', label: 'Body Area', question: 'Ask the user which body area is affected (e.g., face, arms, throat).', type: 'text', optional: true },
-    { key: 'notes', label: 'Notes', question: 'Ask the user if they have any additional notes about this symptom. They can say "skip" if none.', type: 'text', optional: true },
+    { key: 'name', label: 'Symptom', question: 'Ask which symptom {subject} is experiencing. Mention options: Hives, Swelling, Itching, Nausea, Vomiting, Stomach Pain, Difficulty Breathing, Dizziness, Headache, Rash, or Other.', type: 'select', options: SYMPTOM_OPTIONS },
+    { key: 'severity', label: 'Severity', question: 'Ask how severe {possessive} symptom is on a scale of 1 to 10.', type: 'number' },
+    { key: 'bodyArea', label: 'Body Area', question: 'Ask where on {possessive} body the symptom is (e.g., face, arms, throat).', type: 'text', optional: true },
+    { key: 'notes', label: 'Notes', question: 'Ask if there are any additional notes about this symptom. They can say "skip" if none.', type: 'text', optional: true },
   ],
   Exposure: [
     { key: 'subtype', label: 'Type', question: 'Ask what type of exposure this is: Meal, Product, Environmental, or Other.', type: 'select', options: EXPOSURE_TYPE_OPTIONS },
-    { key: 'name', label: 'Name', question: 'Ask the user to describe what they were exposed to (e.g., "Chicken Caesar Salad", "New lotion").', type: 'text' },
-    { key: 'tags', label: 'Ingredients/Tags', question: 'Ask the user to list the key ingredients or tags, separated by commas. They can say "skip" if unsure.', type: 'text', optional: true },
-    { key: 'details', label: 'Details', question: 'Ask the user for any additional details about the exposure. They can say "skip" if none.', type: 'text', optional: true },
+    { key: 'name', label: 'Name', question: 'Ask what {subject} was exposed to (e.g., "Chicken Caesar Salad", "New lotion").', type: 'text' },
+    { key: 'tags', label: 'Ingredients/Tags', question: 'Ask for the key ingredients or tags, separated by commas. They can say "skip" if unsure.', type: 'text', optional: true },
+    { key: 'details', label: 'Details', question: 'Ask for any additional details about the exposure. They can say "skip" if none.', type: 'text', optional: true },
   ],
   Medication: [
-    { key: 'name', label: 'Medication Name', question: 'Ask the user which medication they took (e.g., Benadryl, EpiPen).', type: 'text' },
-    { key: 'dose', label: 'Dose', question: 'Ask the user what dose they took (just the number, e.g., 25).', type: 'text' },
+    { key: 'name', label: 'Medication Name', question: 'Ask which medication {subject} took (e.g., Benadryl, EpiPen).', type: 'text' },
+    { key: 'dose', label: 'Dose', question: 'Ask what dose {subject} took (just the number, e.g., 25).', type: 'text' },
     { key: 'unit', label: 'Unit', question: 'Ask what unit the dose is in: mg, ml, mcg, units, or puffs.', type: 'select', options: MED_UNIT_OPTIONS },
-    { key: 'route', label: 'Route', question: 'Ask how they took the medication: Oral, Topical, Injectable, or Inhaled.', type: 'select', options: MED_ROUTE_OPTIONS },
-    { key: 'reason', label: 'Reason', question: 'Ask why they took this medication (e.g., allergic reaction, prevention).', type: 'text', optional: true },
-    { key: 'notes', label: 'Notes', question: 'Ask the user if they have any additional notes about this medication. They can say "skip" if none.', type: 'text', optional: true },
+    { key: 'route', label: 'Route', question: 'Ask how {subject} took the medication: Oral, Topical, Injectable, or Inhaled.', type: 'select', options: MED_ROUTE_OPTIONS },
+    { key: 'reason', label: 'Reason', question: 'Ask why {subject} took this medication (e.g., allergic reaction, prevention).', type: 'text', optional: true },
+    { key: 'notes', label: 'Notes', question: 'Ask if there are any additional notes about this medication. They can say "skip" if none.', type: 'text', optional: true },
   ],
 };
+
+/** Fills a field script's person tokens for whoever is being logged. */
+const fillQuestion = (question: string, patient: Patient | null): string =>
+  question
+    .replace(/\{subject\}/g, patient && !patient.isOwner ? patient.firstName : 'the user')
+    .replace(/\{possessive\}/g, patient && !patient.isOwner ? `${patient.firstName}'s` : 'their');
 
 // ─── INTENT DETECTION ─────────────────────────────────────────────────────────
 const LOGGING_INTENT_RE: { type: LoggingEntryType; pattern: RegExp }[] = [
@@ -322,6 +360,9 @@ interface AppShellProps {
 }
 
 function AppShell({ userId, userEmail }: AppShellProps) {
+  const { patients, activePatient, activeId, setActiveId, loading: patientsLoading, reload: reloadPatients } =
+    useActivePatient();
+
   const [messages, setMessages] = useState<Message[]>([]);
   const [chatHistory, setChatHistory] = useState<HistoryTurn[]>([]);
   const [sessionContext, setSessionContext] = useState<SessionContext>(INITIAL_SESSION_CONTEXT);
@@ -332,7 +373,26 @@ function AppShell({ userId, userEmail }: AppShellProps) {
   const [currentPage, setCurrentPage] = useState<Page>('home');
   const [symptomLoggerTab, setSymptomLoggerTab] = useState<'Exposure' | 'Symptom' | 'Medication' | 'History'>('Exposure');
   const [exposureTestingSection, setExposureTestingSection] = useState<string | undefined>(undefined);
-  const [hasGreeted, setHasGreeted] = useState(false);
+
+  // ── Chat thread being written to (created lazily on the first user message) ──
+  // Mirrored in a ref because saves fire from staggered timeouts and from the
+  // logging state machine, both of which would otherwise read a stale id and
+  // start a second thread for the same conversation.
+  // Held in a ref, not state: nothing renders the thread id, and it has to be
+  // correct the instant the patient changes — a message typed straight after a
+  // switch would otherwise be appended to the previous person's thread.
+  const threadIdRef = useRef<string | null>(null);
+  const setActiveThread = useCallback((id: string | null) => {
+    threadIdRef.current = id;
+  }, []);
+  // Only ever read through the updater callback, to keep the stored count
+  // correct when two turns are saved in quick succession.
+  const [, setThreadMessageCount] = useState(0);
+  const [hydratingChat, setHydratingChat] = useState(true);
+  // Set when the household has more than one person and no history at all, so
+  // Bea opens by asking who the conversation is about instead of assuming.
+  const [awaitingSubjectChoice, setAwaitingSubjectChoice] = useState(false);
+  const hasGreetedOnce = useRef(false);
 
   // ── Onboarding gate — new/incomplete profiles see the setup wizard first ──
   const [onboardingStatus, setOnboardingStatus] = useState<'checking' | 'needed' | 'done'>('checking');
@@ -433,43 +493,123 @@ function AppShell({ userId, userEmail }: AppShellProps) {
 
   const handleOnboardingComplete = (landingPage?: Page) => {
     setOnboardingStatus('done');
+    // Onboarding usually creates the first child — pick them up before the chat
+    // hydrates, so the very first conversation is already about the right person.
+    void reloadPatients();
     if (landingPage) setCurrentPage(landingPage);
   };
 
-  // ── Nova Micro Greeting ────────────────────────────────────────────────────
+  // ── Greeting ───────────────────────────────────────────────────────────────
+  // Spoken aloud only on the very first greeting of a session; a greeting that
+  // talks at you every time you switch person would be intrusive.
+  const greetFor = useCallback(async (patient: Patient | null, speak: boolean) => {
+    const who = patient && !patient.isOwner ? patient.firstName : null;
+    const fallback = who
+      ? `Hi! How is ${who} doing today?`
+      : "Hi! I'm Bea. How are you feeling?";
+    try {
+      const result = await client.queries.askNovaMicro({
+        question: who
+          ? `Greet the caregiver warmly and ask how ${who} is doing. Max 10 words.`
+          : 'Greet the user warmly. Max 8 words.',
+        history: '[]',
+        context: composeContext(buildSubjectBlock(patient)),
+      });
+      const greetText = String(result.data ?? fallback).trim() || fallback;
+      setMessages([{
+        id: `greet-${Date.now()}`,
+        role: 'assistant',
+        content: greetText,
+        timestamp: new Date(),
+        source: 'nova',
+      }]);
+      if (speak) speakText(greetText);
+    } catch (e) {
+      console.warn('Nova Micro greeting failed', e);
+      setMessages([{
+        id: `greet-fallback-${Date.now()}`,
+        role: 'assistant',
+        content: fallback,
+        timestamp: new Date(),
+        source: 'nova',
+      }]);
+    }
+  }, [speakText]);
+
+  // ── Chat hydration — runs on load and whenever the tracked person changes ──
+  //
+  // Switching person is a full context swap, not a filter: the previous thread
+  // stays saved as it was, and the incoming person's own thread, history and
+  // session memory are loaded in its place.
   useEffect(() => {
-    if (hasGreeted || onboardingStatus !== 'done') return;
-    const greet = async () => {
-      try {
-        setHasGreeted(true);
-        const result = await client.queries.askNovaMicro({
-          question: 'Greet the user warmly. Max 8 words.',
-          history: '[]',
-        });
-        const greetText = String(result.data ?? "Hey! How can I help?").trim();
-        const greetMsg: Message = {
-          id: `greet-${Date.now()}`,
-          role: 'assistant',
-          content: greetText,
-          timestamp: new Date(),
-          source: 'nova',
-        };
-        setMessages([greetMsg]);
-        speakText(greetText);
-      } catch (e) {
-        console.warn('Nova Micro greeting failed', e);
-        setMessages([{
-          id: 'greet-fallback',
-          role: 'assistant',
-          content: "Hi! I'm Immuny. Ask me anything.",
-          timestamp: new Date(),
-          source: 'nova',
-        }]);
+    if (onboardingStatus !== 'done' || patientsLoading) return;
+
+    let cancelled = false;
+    (async () => {
+      setHydratingChat(true);
+      setActiveThread(null);
+      setMessages([]);
+      setChatHistory([]);
+      setLoggingSession(null);
+      setAwaitingSubjectChoice(false);
+      setSessionContext(seedSessionContext(activePatient));
+
+      const thread = await latestThread(activeId);
+      if (cancelled) return;
+
+      if (thread) {
+        const stored = await loadMessages(thread.id);
+        if (cancelled) return;
+        setActiveThread(thread.id);
+        setThreadMessageCount(stored.length);
+        // Assistant replies were saved whole but are displayed as one bubble per
+        // sentence, so re-split them to match how they first appeared.
+        setMessages(stored.flatMap<Message>(m => (
+          m.role === 'assistant'
+            ? splitIntoSentences(m.content).map((sentence, i) => ({
+                id: `${m.id}-${i}`,
+                role: 'assistant',
+                content: sentence,
+                timestamp: new Date(m.sentAt),
+                source: 'nova',
+              }))
+            : [{ id: m.id, role: 'user', content: m.content, timestamp: new Date(m.sentAt) }]
+        )));
+        setChatHistory(stored.slice(-20).map(m => ({ role: m.role, content: m.content })));
+        hasGreetedOnce.current = true;
+      } else {
+        setActiveThread(null);
+        setThreadMessageCount(0);
+
+        // First run in a household with more than one person: ask rather than
+        // guess. Logging a reaction against the wrong child is expensive to undo.
+        const noHistoryAnywhere = !hasGreetedOnce.current
+          && patients.length > 1
+          && (await listAllThreads()).length === 0;
+        if (cancelled) return;
+
+        if (noHistoryAnywhere) {
+          hasGreetedOnce.current = true;
+          setAwaitingSubjectChoice(true);
+          setMessages([{
+            id: 'subject-prompt',
+            role: 'assistant',
+            content: "Hi! I'm Bea. Who are we talking about today?",
+            timestamp: new Date(),
+            source: 'nova',
+          }]);
+        } else {
+          await greetFor(activePatient, !hasGreetedOnce.current);
+          hasGreetedOnce.current = true;
+        }
       }
-    };
-    greet();
+
+      if (!cancelled) setHydratingChat(false);
+    })();
+
+    return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onboardingStatus]);
+  }, [activeId, onboardingStatus, patientsLoading]);
 
   // ── DynamoDB Event Logger (non-blocking) ──────────────────────────────────
   const logEvent = useCallback(async (
@@ -535,31 +675,69 @@ function AppShell({ userId, userEmail }: AppShellProps) {
     });
   };
 
+  // ── Thread persistence ────────────────────────────────────────────────────
+  /**
+   * Ensure a thread exists for the current person and record a turn in it.
+   * Reads the live thread id from a ref rather than state, so turns saved from
+   * a staggered timeout or the logging state machine land in the same thread
+   * instead of racing a second one into existence.
+   */
+  const persistTurn = async (role: 'user' | 'assistant', content: string): Promise<void> => {
+    let id = threadIdRef.current;
+    if (!id) {
+      // Only a user turn is worth opening a thread for — a greeting nobody
+      // replied to should not show up in the profile history.
+      if (role !== 'user') return;
+      const created = await createThread(activeId, deriveTitle(content));
+      if (!created) return;   // save failed; the conversation still works
+      id = created.id;
+      setActiveThread(id);
+    }
+    const target = id;
+    await appendMessage(target, activeId, role, content);
+    setThreadMessageCount(prev => {
+      const next = prev + 1;
+      void touchThread(target, next);
+      return next;
+    });
+  };
+
+  /** Say one of Bea's lines and record it, so the saved transcript reads as a conversation. */
+  const sayAndSave = (text: string) => {
+    injectBubbles(text, 'nova', false);
+    void persistTurn('assistant', text);
+  };
+
   // ── CONVERSATIONAL LOGGING HELPERS ────────────────────────────────────────────
   const askLoggingQuestion = async (entryType: LoggingEntryType, field: FieldDef) => {
     try {
-      const prompt = `You are helping the user log a ${entryType}. ${field.question} Keep it friendly and conversational. Do NOT add any prefix like "Sure!" — just ask the question directly.`;
+      const forWhom = activePatient && !activePatient.isOwner
+        ? ` on behalf of ${activePatient.name}, who is not the person you are talking to`
+        : '';
+      const prompt = `You are helping the user log a ${entryType}${forWhom}. ${fillQuestion(field.question, activePatient)} Keep it friendly and conversational. Do NOT add any prefix like "Sure!" — just ask the question directly.`;
       const result = await client.queries.askNovaMicro({
         question: prompt,
         history: JSON.stringify(chatHistory.slice(-4)),
-        context: buildContextSummary(sessionContext) ?? undefined,
+        context: composeContext(buildSubjectBlock(activePatient), buildContextSummary(sessionContext)),
       });
       const questionText = String(result.data ?? field.question).trim();
-      injectBubbles(questionText, 'nova', false);
+      sayAndSave(questionText);
       setChatHistory(prev => [...prev, { role: 'assistant', content: questionText }].slice(-20) as HistoryTurn[]);
     } catch {
       // Fallback: use the raw question text
       const fallback = `What is the ${field.label.toLowerCase()}?`;
-      injectBubbles(fallback, 'nova', false);
+      sayAndSave(fallback);
     }
   };
 
   const startLoggingSession = async (entryType: LoggingEntryType) => {
     const session: LoggingSession = { entryType, currentFieldIndex: 0, collectedData: {} };
     setLoggingSession(session);
-    // Announce
-    const announcement = `Sure! Let's log a ${entryType.toLowerCase()}. I'll ask you a few questions.`;
-    injectBubbles(announcement, 'nova', false);
+    // Announce — naming the person makes a mis-set switcher obvious before the
+    // entry is written rather than after it lands in the wrong record.
+    const forWhom = activePatient && !activePatient.isOwner ? ` for ${activePatient.firstName}` : '';
+    const announcement = `Sure! Let's log a ${entryType.toLowerCase()}${forWhom}. I'll ask you a few questions.`;
+    sayAndSave(announcement);
     // Ask first question after a short delay
     const fields = FIELD_SCRIPTS[entryType];
     setTimeout(() => void askLoggingQuestion(entryType, fields[0]), 800);
@@ -567,7 +745,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
 
   const cancelLoggingSession = () => {
     setLoggingSession(null);
-    injectBubbles('Logging cancelled. Feel free to chat normally!', 'nova', false);
+    sayAndSave('Logging cancelled. Feel free to chat normally!');
   };
 
   const submitLoggedEntry = async (session: LoggingSession) => {
@@ -577,6 +755,9 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       const basePayload: Record<string, unknown> = {
         type: entryType,
         time: now,
+        // Without this every entry logged through chat was attributed to the
+        // account owner, regardless of who the conversation was about.
+        familyMemberId: activeId ?? null,
       };
 
       if (entryType === 'Symptom') {
@@ -606,11 +787,12 @@ function AppShell({ userId, userEmail }: AppShellProps) {
         : entryType === 'Exposure'
         ? `${collectedData.subtype || ''} — ${collectedData.name}`
         : `${collectedData.name} ${collectedData.dose || ''}${collectedData.unit || ''}`;
-      injectBubbles(`${entryType} logged successfully!\n${summary}\nYou can view it in the Health Logger page.`, 'nova', false);
+      const forWhom = activePatient && !activePatient.isOwner ? ` for ${activePatient.firstName}` : '';
+      sayAndSave(`${entryType} logged successfully${forWhom}!\n${summary}\nYou can view it in the Health Logger page.`);
     } catch (e) {
       console.error('Failed to save logged entry:', e);
       setLoggingSession(null);
-      injectBubbles('Sorry, I couldn\'t save that entry. Please try logging it manually in the Health Logger.', 'nova', false);
+      sayAndSave('Sorry, I couldn\'t save that entry. Please try logging it manually in the Health Logger.');
     }
   };
 
@@ -630,7 +812,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
 
     // Invalid answer — re-ask
     if (!parsed.valid) {
-      injectBubbles(parsed.hint || `Could you try that again?`, 'nova', false);
+      sayAndSave(parsed.hint || `Could you try that again?`);
       return;
     }
 
@@ -692,6 +874,10 @@ function AppShell({ userId, userEmail }: AppShellProps) {
     ].slice(-20);
     setChatHistory(updatedHistory);
 
+    // Persist the user's turn before anything can fail downstream, so a dropped
+    // reply still leaves a record of what was reported.
+    await persistTurn('user', userContent);
+
     // ── CONVERSATIONAL LOGGING INTERCEPT ────────────────────────────────────
     // If a logging session is active, route the answer to the state machine
     if (loggingSession && !capturedImage) {
@@ -713,6 +899,9 @@ function AppShell({ userId, userEmail }: AppShellProps) {
     // History snapshot already includes the current user turn (fixed above)
     const historySnapshot = updatedHistory.slice(-10);
     const contextSummary = buildContextSummary(sessionContext);
+    // The subject block leads the context: it decides who "you" refers to, and
+    // every fact after it is read in that frame.
+    const novaContext = composeContext(buildSubjectBlock(activePatient), contextSummary);
 
     try {
       let responseText = '';
@@ -742,7 +931,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       // ── RULE 2: All text → Nova Micro (MedGemma disabled) ────────────────
       else if (MEDGEMMA_ENABLED && !capturedImage && isMedicalQuery(userContent)) {
         // Reserved: MedGemma medical routing — re-enable by setting MEDGEMMA_ENABLED = true
-        const medGemmaQuestion = contextSummary ? `[Context: ${contextSummary}]\n\n${userContent}` : userContent;
+        const medGemmaQuestion = novaContext ? `[Context: ${novaContext}]\n\n${userContent}` : userContent;
         const res = await fetch(AGENT_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -763,7 +952,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
         const result = await client.queries.askNovaMicro({
           question: userContent,
           history: JSON.stringify(historySnapshot),
-          context: contextSummary ?? undefined,
+          context: novaContext,
         });
         responseText = cleanModelOutput(String(result.data ?? '').trim())
           || "I'm here! Could you tell me a little more about that?";
@@ -777,6 +966,10 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       // ── Inject multi-bubble response ────────────────────────────────────
       // Each sentence becomes its own chat bubble with a 350ms stagger
       injectBubbles(responseText, source, true);
+
+      // Saved whole rather than per-bubble so the history sent to Nova on the
+      // next load is the same shape it was during the live conversation.
+      void persistTurn('assistant', responseText);
 
       // ── Update rolling chat history with assistant reply ─────────────────
       // Note: user turn was already added before the API call (timing fix).
@@ -807,6 +1000,15 @@ function AppShell({ userId, userEmail }: AppShellProps) {
     setCurrentPage(page);
   };
 
+  // Answering the opening "who are we talking about?" question. Picking someone
+  // else hands off to the hydration effect; picking whoever is already active
+  // would not change `activeId`, so greet here instead.
+  const chooseSubject = (p: Patient) => {
+    setAwaitingSubjectChoice(false);
+    if (p.id === activeId) void greetFor(p, false);
+    else setActiveId(p.id);
+  };
+
   // ── Chat UI ────────────────────────────────────────────────────────────────
   const renderChat = () => (
     <>
@@ -818,11 +1020,11 @@ function AppShell({ userId, userEmail }: AppShellProps) {
           </svg>
         </button>
         <h1 className="chat-top-title">Bea</h1>
-        <div className="chat-profile-dot" />
+        <PatientSwitcher onManageFamily={() => navigateTo('profile')} />
       </div>
 
       <div className="chat-messages">
-        {messages.length === 0 ? (
+        {messages.length === 0 && !hydratingChat ? (
           <div className="empty-chat">
             <img src={beaImg} alt="Bea" className="bot-logo-large" />
             <h2>Immuny</h2>
@@ -849,6 +1051,24 @@ function AppShell({ userId, userEmail }: AppShellProps) {
               </div>
             </div>
           ))
+        )}
+        {/* First run with more than one person on the account: choosing here is
+            faster than opening the switcher, and makes the subject explicit
+            before anything is logged against it. */}
+        {awaitingSubjectChoice && (
+          <div className="subject-choice">
+            {patients.map(p => (
+              <button
+                key={p.id ?? 'owner'}
+                type="button"
+                className="subject-choice-chip"
+                onClick={() => chooseSubject(p)}
+              >
+                <PatientAvatar avatarKey={p.avatarKey} seed={patientSeed(p)} size={30} />
+                <span>{p.isOwner ? 'Me' : p.firstName}</span>
+              </button>
+            ))}
+          </div>
         )}
         {loading && (
           <div className="message-bubble assistant">
@@ -964,7 +1184,11 @@ export default function App() {
       {({ user }) => {
         const userId = user?.userId ?? 'anonymous';
         const userEmail = user?.signInDetails?.loginId;
-        return <AppShell userId={userId} userEmail={userEmail} />;
+        return (
+          <ActivePatientProvider>
+            <AppShell userId={userId} userEmail={userEmail} />
+          </ActivePatientProvider>
+        );
       }}
     </Authenticator>
   );

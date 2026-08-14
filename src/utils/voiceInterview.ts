@@ -60,8 +60,12 @@ export type SlotKey =
 
 export interface Slot {
   key: SlotKey;
-  /** The question Bea asks — phrased around what she already knows. */
-  ask: (d: EntryDraft) => string;
+  /**
+   * The question Bea asks — phrased around what she already knows, and around
+   * who the entry is about. `p` defaults to the account owner, so a caller that
+   * does not track people still gets the original second-person wording.
+   */
+  ask: (d: EntryDraft, p?: PersonRef) => string;
   /** Tappable answers, for noisy rooms or when speaking isn't practical. */
   chips?: (d: EntryDraft) => string[];
   /**
@@ -414,22 +418,71 @@ export function openingSeverity(text: string): number | null {
   return EXPLICIT_SEVERITY_RE.test(text) ? parseSeverity(text) : null;
 }
 
+// ─── Who is being logged ──────────────────────────────────────────────────────
+// The person speaking is often not the person the entry is about — a parent
+// logging their child's reaction is the common case — so every question that
+// would otherwise say "you" has to know which of the two it means.
+//
+// Kept as plain strings rather than importing the Patient type: this module is
+// unit-tested in isolation and must not pull in the Amplify client.
+export interface PersonRef {
+  /** Subject of a verb: "you" / "Maya". */
+  named: string;
+  /** Possessive before a noun's first mention: "your" / "Maya's". */
+  possessive: string;
+  /** Possessive on a later mention in the same sentence: "your" / "her". */
+  possessivePronoun: string;
+  /** True when the speaker is the patient, i.e. plain second person. */
+  isSelf: boolean;
+}
+
+/** The account owner logging for themselves — the original wording. */
+export const SELF: PersonRef = {
+  named: 'you',
+  possessive: 'your',
+  possessivePronoun: 'your',
+  isSelf: true,
+};
+
+/**
+ * Build a reference for someone other than the speaker.
+ *
+ * Unstated pronouns become they/them rather than a guess from the name: this
+ * text is read back to a caregiver and can end up in a clinical export, and
+ * guessing wrong misgenders a real child.
+ */
+export function personRefFor(person: { name: string; pronouns?: string; isOwner?: boolean } | null | undefined): PersonRef {
+  if (!person || person.isOwner) return SELF;
+  const firstName = person.name.trim().split(/\s+/)[0] || person.name.trim();
+  const p = (person.pronouns ?? '').toLowerCase().trim();
+  const possessivePronoun = p.startsWith('she') ? 'her' : p.startsWith('he') ? 'his' : 'their';
+  return {
+    named: firstName,
+    possessive: `${firstName}'s`,
+    possessivePronoun,
+    isSelf: false,
+  };
+}
+
 // ─── Slots ────────────────────────────────────────────────────────────────────
 // `ask` reads from the draft so the questions name the thing being logged
-// ("How bad is the rash?") instead of sounding like a generic form.
+// ("How bad is the rash?") instead of sounding like a generic form, and from
+// the person so they name who it happened to.
 const subject = (d: EntryDraft) => (d.name ? d.name.toLowerCase() : 'it');
 
 const SYMPTOM_SLOTS: Slot[] = [
   {
     key: 'name',
-    ask: () => 'What are you noticing right now?',
+    ask: (_d, p = SELF) => (p.isSelf
+      ? 'What are you noticing right now?'
+      : `What are you noticing about ${p.named} right now?`),
     chips: () => ['Hives', 'Rash', 'Swelling', 'Itching', 'Nausea'],
     applies: () => true,
     isFilled: d => !!d.name,
   },
   {
     key: 'bodyArea',
-    ask: d => `Where on your body is the ${subject(d)}?`,
+    ask: (d, p = SELF) => `Where on ${p.possessive} body is the ${subject(d)}?`,
     keep: [/where|whereabouts/i],
     chips: () => ['Face', 'Arms', 'Hands', 'Legs', 'Torso', 'All over'],
     applies: d => needsBodyArea(d.name),
@@ -463,7 +516,7 @@ const SYMPTOM_SLOTS: Slot[] = [
   },
   {
     key: 'treatment',
-    ask: d => `Did you take anything for the ${subject(d)}?`,
+    ask: (d, p = SELF) => `Did ${p.named} take anything for the ${subject(d)}?`,
     keep: [/take|took|taken|anything/i],
     chips: () => ['Nothing', 'Antihistamine', 'Cetirizine', 'Benadryl', 'Inhaler'],
     optional: true,
@@ -473,7 +526,7 @@ const SYMPTOM_SLOTS: Slot[] = [
   {
     // Red-flag episodes only — see isSignificantEpisode.
     key: 'epinephrine',
-    ask: () => 'Did you have your epinephrine with you?',
+    ask: (_d, p = SELF) => `Did ${p.named} have ${p.possessivePronoun} epinephrine ${p.isSelf ? 'with you' : 'to hand'}?`,
     keep: [/epinephrine|epi\b|auto-?injector/i],
     chips: () => ['Yes, with me', 'No, not with me'],
     applies: d => isSignificantEpisode(d),
@@ -481,7 +534,7 @@ const SYMPTOM_SLOTS: Slot[] = [
   },
   {
     key: 'emergencyCare',
-    ask: () => 'Did you need urgent care, the emergency room, or an ambulance for this?',
+    ask: (_d, p = SELF) => `Did ${p.named} need urgent care, the emergency room, or an ambulance for this?`,
     keep: [/urgent care/i, /emergency/i, /ambulance/i],
     chips: () => ['No', 'Urgent care', 'Emergency room', 'Ambulance'],
     applies: d => isSignificantEpisode(d),
@@ -517,13 +570,13 @@ const SYMPTOM_SLOTS: Slot[] = [
 const EXPOSURE_SLOTS: Slot[] = [
   {
     key: 'name',
-    ask: () => 'What were you exposed to?',
+    ask: (_d, p = SELF) => (p.isSelf ? 'What were you exposed to?' : `What was ${p.named} exposed to?`),
     applies: () => true,
     isFilled: d => !!d.name,
   },
   {
     key: 'onset',
-    ask: d => `When did you have the ${subject(d)}?`,
+    ask: (d, p = SELF) => `When did ${p.named} have the ${subject(d)}?`,
     chips: () => ['Just now', 'An hour ago', 'This morning', 'Yesterday'],
     applies: () => true,
     isFilled: d => !!d.startedAt,
@@ -538,7 +591,7 @@ const EXPOSURE_SLOTS: Slot[] = [
   },
   {
     key: 'followUp',
-    ask: () => 'Want me to check in tomorrow to see if you reacted to it?',
+    ask: (_d, p = SELF) => `Want me to check in tomorrow to see if ${p.named} reacted to it?`,
     chips: () => ['Yes, check in', 'No thanks'],
     applies: () => true,
     isFilled: d => typeof d.followUp === 'boolean',
@@ -548,13 +601,13 @@ const EXPOSURE_SLOTS: Slot[] = [
 const MEDICATION_SLOTS: Slot[] = [
   {
     key: 'name',
-    ask: () => 'Which medication did you take?',
+    ask: (_d, p = SELF) => `Which medication did ${p.named} take?`,
     applies: () => true,
     isFilled: d => !!d.name,
   },
   {
     key: 'dose',
-    ask: d => `How much ${subject(d)} did you take?`,
+    ask: (d, p = SELF) => `How much ${subject(d)} did ${p.named} take?`,
     chips: () => ['25 mg', '50 mg', '1 tablet', 'Not sure'],
     optional: true,
     applies: () => true,
@@ -562,14 +615,14 @@ const MEDICATION_SLOTS: Slot[] = [
   },
   {
     key: 'onset',
-    ask: d => `When did you take the ${subject(d)}?`,
+    ask: (d, p = SELF) => `When did ${p.named} take the ${subject(d)}?`,
     chips: () => ['Just now', 'An hour ago', 'This morning', 'Last night'],
     applies: () => true,
     isFilled: d => !!d.startedAt,
   },
   {
     key: 'reason',
-    ask: () => 'What did you take it for?',
+    ask: (_d, p = SELF) => `What did ${p.named} take it for?`,
     chips: () => ['Allergic reaction', 'Prevention', 'Skip'],
     optional: true,
     applies: () => true,
@@ -620,6 +673,7 @@ export function applyAnswer(
   key: SlotKey,
   transcript: string,
   now: Date = new Date(),
+  person: PersonRef = SELF,
 ): AnswerResult {
   const text = transcript.trim();
   if (!text) return { draft, status: 'retry', reprompt: "I didn't catch that — could you say it again?" };
@@ -645,7 +699,7 @@ export function applyAnswer(
     }
     case 'bodyArea': {
       const area = cleanBodyArea(text);
-      if (!area) return { draft, status: 'retry', reprompt: 'Whereabouts on your body — for example your face, arms or legs?' };
+      if (!area) return { draft, status: 'retry', reprompt: `Whereabouts on ${person.possessive} body — for example the face, arms or legs?` };
       return { draft: { ...draft, bodyArea: area }, status: 'ok' };
     }
     case 'severity': {
@@ -686,7 +740,7 @@ export function applyAnswer(
       return { draft: { ...draft, treatment: parseTreatment(text) }, status: 'ok' };
     case 'epinephrine': {
       const yn = parseYesNo(text);
-      if (yn == null) return { draft, status: 'retry', reprompt: 'Just yes or no — did you have your epinephrine with you?' };
+      if (yn == null) return { draft, status: 'retry', reprompt: `Just yes or no — did ${person.named} have ${person.possessivePronoun} epinephrine?` };
       return { draft: { ...draft, epinephrineAvailable: yn ? 'yes' : 'no' }, status: 'ok' };
     }
     case 'emergencyCare': {

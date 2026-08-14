@@ -8,6 +8,7 @@ import immunyLogo from '../assets/immuny-logo-header.png';
 import { buildReport, type ReportEntry, type ReportInput, type ReportPatient } from '../utils/clinicalReport';
 import { downloadVisitSummary, loadLogo, type LogoImage } from '../utils/exportPdf';
 import { getActivePatientId, setActivePatientId } from '../utils/activePatient';
+import { loadPatients, type Patient } from '../utils/patients';
 
 const client = generateClient<Schema>();
 
@@ -24,6 +25,18 @@ interface PatientOption {
   id: string | undefined;   // undefined = the profile owner
   label: string;
   patient: ReportPatient;
+}
+
+function toReportPatient(p: Patient): ReportPatient {
+  return {
+    name: p.isOwner ? (p.name === 'Me' ? 'Patient' : p.name) : p.name,
+    dateOfBirth: p.dateOfBirth ?? null,
+    relationship: p.relationship ?? null,
+    knownAllergies: p.knownAllergies ?? null,
+    medicalConditions: p.medicalConditions ?? null,
+    // Household-level family history from the owner's profile applies to everyone.
+    medicalHistory: p.medicalHistory ?? null,
+  };
 }
 
 interface ExportDataSheetProps {
@@ -44,34 +57,11 @@ export default function ExportDataSheet({ onClose }: ExportDataSheetProps) {
   useEffect(() => {
     (async () => {
       try {
-        const [{ data: profiles }, { data: familyMembers }] = await Promise.all([
-          client.models.UserProfile.list(),
-          client.models.FamilyMember.list(),
-        ]);
-        const profile = profiles?.[0];
-        const options: PatientOption[] = [
-          {
-            id: undefined,
-            label: profile?.name?.trim() || 'Me',
-            patient: {
-              name: profile?.name?.trim() || 'Patient',
-              dateOfBirth: profile?.dateOfBirth ?? null,
-              medicalHistory: profile?.medicalHistory ?? null,
-            },
-          },
-          ...(familyMembers ?? []).map(fm => ({
-            id: fm.id,
-            label: fm.name,
-            patient: {
-              name: fm.name,
-              dateOfBirth: fm.dateOfBirth ?? null,
-              relationship: fm.relationship ?? null,
-              knownAllergies: fm.knownAllergies ?? null,
-              medicalConditions: fm.medicalConditions ?? null,
-              medicalHistory: profile?.medicalHistory ?? null,   // household-level family history applies to everyone
-            },
-          })),
-        ];
+        const options: PatientOption[] = (await loadPatients()).map(p => ({
+          id: p.id,
+          label: p.name,
+          patient: toReportPatient(p),
+        }));
         setPatients(options);
         // The saved active-patient id might belong to a family member who was
         // since removed — fall back to the profile owner rather than erroring.

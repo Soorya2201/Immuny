@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import type { Page } from '../types';
@@ -6,9 +6,11 @@ import beaImg from '../assets/bea.png';
 import { toLocalDatetimeInputValue } from '../utils/formatTime';
 import { cancelSpeech, primeVoices, speak } from '../utils/speech';
 import { phraseQuestion } from '../utils/beaVoice';
-import { getActivePatientId } from '../utils/activePatient';
+import { useActivePatient } from '../contexts/useActivePatient';
+import PatientSwitcher from './PatientSwitcher';
 import {
   applyAnswer,
+  personRefFor,
   COFACTOR_OPTIONS,
   draftToPayload,
   isSignificantEpisode,
@@ -220,6 +222,13 @@ function Spinner() {
 }
 
 export default function VoicePage({ onNavigate }: VoicePageProps) {
+  // Who the entry is about. Read from context rather than localStorage so a
+  // switch made while the interview is open takes effect immediately.
+  const { activePatient, activeId } = useActivePatient();
+  const person = useMemo(() => personRefFor(activePatient), [activePatient]);
+  const personRef = useRef(person);
+  useEffect(() => { personRef.current = person; }, [person]);
+
   const [phase, setPhase] = useState<Phase>('idle');
   const [turns, setTurns] = useState<Turn[]>([]);
   const [draft, setDraft] = useState<EntryDraft | null>(null);
@@ -371,12 +380,16 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
 
     // A re-prompt after a misheard answer is already tuned to explain what's
     // needed — rephrasing that one would lose the correction.
-    let question = override ?? slot.ask(forDraft);
+    const who = personRef.current;
+    let question = override ?? slot.ask(forDraft, who);
     if (!override) {
       setPhase('thinking');
       question = await phraseQuestion(question, {
         mustKeep: slot.keep,
-        context: `${forDraft.type.toLowerCase()}${forDraft.name ? ` "${forDraft.name}"` : ''}`,
+        // Naming the subject here stops the rewrite quietly turning "Maya's
+        // rash" back into "your rash".
+        context: `${forDraft.type.toLowerCase()}${forDraft.name ? ` "${forDraft.name}"` : ''}`
+          + (who.isSelf ? '' : `, being logged for ${who.named}, not for the person speaking`),
       });
       if (abortedRef.current) return;
     }
@@ -453,7 +466,7 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
     const slot = slotRef.current;
     if (!slot) return;
 
-    const result = applyAnswer(current, slot.key, text);
+    const result = applyAnswer(current, slot.key, text, new Date(), personRef.current);
     if (result.status === 'cancel') {
       void cancelSession();
       return;
@@ -519,7 +532,7 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
     const finalDraft = draftRef.current;
     if (!finalDraft) return;
     setPhase('saving');
-    const payload = draftToPayload({ ...finalDraft, familyMemberId: getActivePatientId() });
+    const payload = draftToPayload({ ...finalDraft, familyMemberId: activeId });
     try {
       const { data: created } = await client.models.HealthEntry.create(payload);
 
@@ -534,7 +547,7 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
             time: finalDraft.startedAt || toLocalDatetimeInputValue(new Date()),
             reason: finalDraft.name,
             relatedEntryId: created.id,
-            familyMemberId: getActivePatientId(),
+            familyMemberId: activeId,
           });
           if (med?.id) {
             await client.models.HealthEntry.update({ id: created.id, relatedEntryId: med.id });
@@ -570,7 +583,7 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
       setErrorMsg(err instanceof Error ? err.message : 'Could not save. Please try again.');
       setPhase('error');
     }
-  }, [pushTurn]);
+  }, [pushTurn, activeId]);
 
   // ── Draft editing (the safety net for a misheard answer) ───────────────────
   const patchDraft = useCallback((patch: Partial<EntryDraft>) => {
@@ -643,6 +656,9 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
         </svg>
       </button>
 
+      <div className="voice-top-actions">
+        <PatientSwitcher onManageFamily={() => onNavigate('profile')} />
+
       <button
         className="voice-mute-btn"
         onClick={() => { setMuted(m => !m); cancelSpeech(); }}
@@ -661,6 +677,7 @@ export default function VoicePage({ onNavigate }: VoicePageProps) {
           </svg>
         )}
       </button>
+      </div>
 
       <div className="voice-content">
         <div className={`voice-orb ${phase === 'listening' ? 'voice-orb--active' : ''} ${phase === 'speaking' ? 'voice-orb--speaking' : ''}`}>
