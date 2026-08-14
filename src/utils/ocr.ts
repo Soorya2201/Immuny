@@ -1,6 +1,6 @@
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
-import { COMMON_ALLERGENS } from './allergens';
+import { matchAllergensInText } from './allergens';
 
 const client = generateClient<Schema>();
 
@@ -46,8 +46,7 @@ export async function extractTextFromFiles(files: File[]): Promise<string> {
 // allergen vocabulary so a plain-language "this food contains..." summary
 // can be shown and stored alongside the raw text.
 export function detectAllergensInText(text: string): string[] {
-  const lower = text.toLowerCase();
-  return COMMON_ALLERGENS.filter(a => lower.includes(a.toLowerCase()));
+  return matchAllergensInText(text);
 }
 
 export function buildContainsSummary(text: string): string {

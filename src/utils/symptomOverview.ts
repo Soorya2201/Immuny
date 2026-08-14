@@ -25,8 +25,11 @@ function startOfDay(d: Date): Date {
 export function buildSymptomOverview(
   entries: { type: string; time: string; severity?: number | null }[],
   days: 7 | 30,
+  // Injectable so the window is testable and reproducible, matching the other
+  // date-sensitive utils. Callers in the app leave it to default.
+  now: Date = new Date(),
 ): SymptomOverview {
-  const today = startOfDay(new Date());
+  const today = startOfDay(now);
   const buckets: DayBucket[] = [];
 
   for (let i = days - 1; i >= 0; i--) {
