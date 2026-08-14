@@ -363,9 +363,9 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
           <p style={{ fontSize: 13, color: '#667781', marginBottom: 16 }}>
             Log what you ate, used, or were around — you don't need a reaction to log it.
           </p>
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div className="form-group" style={{ flex: 1 }}><label>Type</label><select value={expType} onChange={e => setExpType(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}><option>Meal</option><option>Product</option><option>Environmental</option><option>Other</option></select></div>
-            <div className="form-group" style={{ flex: 2 }}><label>{expType === 'Meal' ? 'What did you eat?' : 'Name / Description'}</label><input type="text" value={expName} onChange={e => setExpName(e.target.value)} placeholder="e.g., Chicken Caesar Salad" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
+          <div className="form-row">
+            <div className="form-group"><label>Type</label><select value={expType} onChange={e => setExpType(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}><option>Meal</option><option>Product</option><option>Environmental</option><option>Other</option></select></div>
+            <div className="form-group form-group--wide"><label>{expType === 'Meal' ? 'What did you eat?' : 'Name / Description'}</label><input type="text" value={expName} onChange={e => setExpName(e.target.value)} placeholder="e.g., Chicken Caesar Salad" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
           </div>
           <div className="form-group">
             <label>Ingredients / Tags (comma-separated)</label>
@@ -388,9 +388,9 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
             <input type="text" value={expTags} onChange={e => setExpTags(e.target.value)} placeholder="e.g., chicken, lettuce, peanuts" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} />
           </div>
 
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div className="form-group" style={{ flex: 2 }}><label>Quantity</label><input type="text" value={expQuantity} onChange={e => setExpQuantity(e.target.value)} placeholder="e.g., 250" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
-            <div className="form-group" style={{ flex: 1 }}><label>Unit</label><select value={expQuantityUnit} onChange={e => setExpQuantityUnit(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>{['grams', 'oz', 'ml', 'cups', 'pieces', 'tbsp'].map(o => <option key={o}>{o}</option>)}</select></div>
+          <div className="form-row">
+            <div className="form-group form-group--wide"><label>Quantity</label><input type="text" value={expQuantity} onChange={e => setExpQuantity(e.target.value)} placeholder="e.g., 250" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
+            <div className="form-group"><label>Unit</label><select value={expQuantityUnit} onChange={e => setExpQuantityUnit(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>{['grams', 'oz', 'ml', 'cups', 'pieces', 'tbsp'].map(o => <option key={o}>{o}</option>)}</select></div>
           </div>
 
           <div className="form-group">
@@ -461,9 +461,9 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
           </div>
           {symName === 'Other' && <div className="form-group"><label>Describe</label><input type="text" value={symCustom} onChange={e => setSymCustom(e.target.value)} placeholder="e.g., Throat tightness" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>}
           <div className="form-group"><label>Severity: {symSeverity}/10</label><input type="range" min="1" max="10" value={symSeverity} onChange={e => setSymSeverity(Number(e.target.value))} style={{ width: '100%', accentColor: '#4A7BA7' }} /><SeverityBar value={symSeverity} /></div>
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div className="form-group" style={{ flex: 1 }}><label>Body Area</label><input type="text" value={symBody} onChange={e => setSymBody(e.target.value)} placeholder="e.g., Face" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
-            <div className="form-group" style={{ flex: 1 }}><label>Date & Time</label><input type="datetime-local" value={symTime} onChange={e => setSymTime(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
+          <div className="form-row">
+            <div className="form-group"><label>Body Area</label><input type="text" value={symBody} onChange={e => setSymBody(e.target.value)} placeholder="e.g., Face" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
+            <div className="form-group"><label>Date & Time</label><input type="datetime-local" value={symTime} onChange={e => setSymTime(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
           </div>
           <div className="form-group"><label>Notes</label><textarea value={symNotes} onChange={e => setSymNotes(e.target.value)} rows={2} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
           <button className="save-btn" onClick={() => {
@@ -478,10 +478,10 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
       {activeTab === 'Medication' && (
         <div>
           <div className="form-group"><label>Medication Name</label><input type="text" value={medName} onChange={e => setMedName(e.target.value)} placeholder="e.g., Benadryl, EpiPen" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div className="form-group" style={{ flex: 1 }}><label>Dose</label><input type="text" value={medDose} onChange={e => setMedDose(e.target.value)} placeholder="25" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
-            <div className="form-group" style={{ flex: 1 }}><label>Unit</label><select value={medUnit} onChange={e => setMedUnit(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>{MED_UNITS.map(o => <option key={o}>{o}</option>)}</select></div>
-            <div className="form-group" style={{ flex: 1 }}><label>Route</label><select value={medRoute} onChange={e => setMedRoute(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>{MED_ROUTES.map(o => <option key={o}>{o}</option>)}</select></div>
+          <div className="form-row">
+            <div className="form-group"><label>Dose</label><input type="text" value={medDose} onChange={e => setMedDose(e.target.value)} placeholder="25" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
+            <div className="form-group"><label>Unit</label><select value={medUnit} onChange={e => setMedUnit(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>{MED_UNITS.map(o => <option key={o}>{o}</option>)}</select></div>
+            <div className="form-group"><label>Route</label><select value={medRoute} onChange={e => setMedRoute(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>{MED_ROUTES.map(o => <option key={o}>{o}</option>)}</select></div>
           </div>
           <div className="form-group"><label>Reason</label><input type="text" value={medReason} onChange={e => setMedReason(e.target.value)} placeholder="e.g., Allergic reaction" style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
           <div className="form-group"><label>Notes</label><textarea value={medNotes} onChange={e => setMedNotes(e.target.value)} rows={2} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>

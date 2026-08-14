@@ -230,7 +230,7 @@ export default function ExposureTestingPage({ initialSection }: ExposureTestingP
           ))}
           {!allChecked && <div style={{ color: '#DC2626', fontSize: 12, marginBottom: 16 }}>Complete all safety checks before proceeding.</div>}
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20, marginTop: 16 }}>
+          <div className="form-row" style={{ marginTop: 16 }}>
             <div>
               <div className="form-group"><label>Test Name</label><input type="text" value={testName} onChange={e => setTestName(e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>
               <div className="form-group"><label>Allergen</label><input type="text" value={allergen} onChange={e => setAllergen(e.target.value)} style={{ width: '100%', padding: 10, border: '1px solid #E9EDEF', borderRadius: 8 }} /></div>

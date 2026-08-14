@@ -283,13 +283,13 @@ export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
               style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} />
           </div>
 
-          <div style={{ display: 'flex', gap: 16 }}>
-            <div className="form-group" style={{ flex: 2 }}>
+          <div className="form-row">
+            <div className="form-group form-group--wide">
               <label>Quantity</label>
               <input type="text" value={quantity} onChange={e => setQuantity(e.target.value)} placeholder="e.g., 250"
                 style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }} />
             </div>
-            <div className="form-group" style={{ flex: 1 }}>
+            <div className="form-group">
               <label>Unit</label>
               <select value={quantityUnit} onChange={e => setQuantityUnit(e.target.value)} style={{ width: '100%', padding: 12, border: '1px solid #E9EDEF', borderRadius: 8 }}>
                 {['grams', 'oz', 'ml', 'cups', 'pieces', 'tbsp'].map(o => <option key={o}>{o}</option>)}

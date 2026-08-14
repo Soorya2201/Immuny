@@ -712,9 +712,53 @@ body {
 /* Page Container */
 .page-container {
   flex: 1;
-  padding: 24px;
+  /* Scales down on narrow phones: a flat 24px each side costs 15% of a 320px
+     screen before any content is drawn. */
+  padding: clamp(14px, 4.5vw, 24px);
+  min-width: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   background: white;
+}
+
+/* Form controls have a wide intrinsic minimum — a browser sizes a bare <input>
+   at roughly twenty characters — so side-by-side fields refuse to shrink and
+   push the whole frame wider than the screen. */
+.page-container input,
+.page-container select,
+.page-container textarea,
+.page-container button {
+  max-width: 100%;
+  min-width: 0;
+}
+
+/* Long unbroken strings (pasted URLs, scanned ingredient text) are the other
+   thing that can widen a column past the viewport. */
+.page-container {
+  overflow-wrap: anywhere;
+}
+
+/* A row of fields that stacks instead of overflowing.
+   flex-basis is the width each field wants; below roughly twice that plus the
+   gap, they wrap to their own lines rather than being crushed. */
+.form-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0 16px;
+}
+
+.form-row > .form-group {
+  flex: 1 1 148px;
+  min-width: 0;
+}
+
+.form-row > .form-group--wide {
+  flex-grow: 2;
+}
+
+/* Spans the whole row — the flex equivalent of grid-column: 1 / -1. */
+.form-row > .form-group--full {
+  flex: 1 1 100%;
 }
 
 .page-container h2 {
@@ -955,9 +999,14 @@ body {
 .app-container {
   display: flex;
   flex-direction: column;
+  /* dvh tracks the address bar as it hides and shows; without it the bottom
+     nav sits under Safari's toolbar on iOS. vh first as the fallback. */
   height: 100vh;
+  height: 100dvh;
   width: 100%;
   max-width: 480px;
+  /* Nothing inside may force the phone frame wider than the screen. */
+  min-width: 0;
   margin: 0 auto;
   position: relative;
   overflow: hidden;
@@ -973,6 +1022,10 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
+  /* Flex items default to min-height/min-width:auto, so without these a wide
+     or tall child propagates its size back up and breaks the frame. */
+  min-width: 0;
+  min-height: 0;
   overflow: hidden;
   padding-bottom: var(--nav-h);
 }
@@ -1449,7 +1502,11 @@ body {
   display: flex;
   flex-direction: column;
   background: linear-gradient(180deg, #0e9bc4 0%, #38aecb 40%, #dff4f8 100%);
+  min-width: 0;
   overflow-y: auto;
+  /* Setting one axis to auto makes the other compute to auto too, which would
+     let the decorative rings scroll the page sideways on a narrow phone. */
+  overflow-x: hidden;
 }
 
 .home-hero {

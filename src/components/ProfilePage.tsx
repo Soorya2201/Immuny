@@ -152,7 +152,7 @@ function IdentityFields({ pronouns, onPronouns, avatarKey, onAvatar, seed }: {
   const isCustom = !!pronouns && !PRONOUN_PRESETS.includes(pronouns);
   return (
     <>
-      <div className="form-group" style={{ marginBottom: 8, gridColumn: '1 / -1' }}>
+      <div className="form-group form-group--full" style={{ marginBottom: 8 }}>
         <label style={{ fontSize: 13 }}>Pronouns</label>
         <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px' }}>
           Bea uses these when talking about this person, so it never has to guess.
@@ -182,7 +182,7 @@ function IdentityFields({ pronouns, onPronouns, avatarKey, onAvatar, seed }: {
         />
       </div>
 
-      <div className="form-group" style={{ marginBottom: 8, gridColumn: '1 / -1' }}>
+      <div className="form-group form-group--full" style={{ marginBottom: 8 }}>
         <label style={{ fontSize: 13 }}>Avatar</label>
         <div className="avatar-picker">
           {AQUATIC_AVATARS.map(({ key, label, Icon, tint }) => {
@@ -794,7 +794,7 @@ export default function ProfilePage() {
             <h4 style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#4A7BA7', marginBottom: 12, fontSize: 14 }}>
               {editingFmId ? <EditIcon /> : <PlusIcon />} {editingFmId ? 'Edit Family Member' : 'Add Family Member'}
             </h4>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+            <div className="form-row">
               <div className="form-group" style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 13 }}>Name *</label>
                 <input type="text" value={fmName} onChange={e => setFmName(e.target.value)} placeholder="e.g., Sarah" />
@@ -809,7 +809,7 @@ export default function ProfilePage() {
                 <label style={{ fontSize: 13 }}>Age</label>
                 <input type="number" value={fmAge} onChange={e => setFmAge(e.target.value)} placeholder="Optional" />
               </div>
-              <div className="form-group" style={{ marginBottom: 8, gridColumn: '1 / -1' }}>
+              <div className="form-group form-group--full" style={{ marginBottom: 8 }}>
                 <label style={{ fontSize: 13 }}>Known Allergies</label>
                 <p style={{ fontSize: 11, color: '#94a3b8', margin: '0 0 6px' }}>
                   Pick from the same list used for symptom &amp; exposure logging so they show up together in Insights.
