@@ -17,9 +17,45 @@ export interface ExposureTestSummaryRow {
   reactions?: string | null;
 }
 
+/**
+ * Where an allergen stands in the testing process.
+ *
+ * Ordered by how much it should worry you, which is also the precedence used
+ * when one allergen has several tests: a recorded reaction is the fact that
+ * matters most, so a later test being underway must not hide it.
+ */
+export type AllergenStatus = 'reacted' | 'testing' | 'planned' | 'tolerated' | 'untested';
+
+const STATUS_PRECEDENCE: AllergenStatus[] = ['reacted', 'testing', 'planned', 'tolerated', 'untested'];
+
 export interface AllergenBar {
   label: string;
   count: number;
+  status: AllergenStatus;
+}
+
+// A completed test records reactions as free text. Absent means nothing was
+// observed; so does someone typing "none" into the box, which would otherwise
+// read as a reaction and colour a tolerated food red.
+const NO_REACTION_RE = /^(none|no|n\/?a|nil|nothing|no reaction[s]?|none observed|no symptoms)\.?$/i;
+
+function hasReaction(reactions: string | null | undefined): boolean {
+  const text = reactions?.trim();
+  return !!text && !NO_REACTION_RE.test(text);
+}
+
+function statusOfTest(test: ExposureTestSummaryRow): AllergenStatus {
+  if (test.status === 'completed') return hasReaction(test.reactions) ? 'reacted' : 'tolerated';
+  if (test.status === 'active') return 'testing';
+  if (test.status === 'planned') return 'planned';
+  return 'untested';
+}
+
+/** The status shown for an allergen, given every test recorded against it. */
+export function resolveAllergenStatus(tests: ExposureTestSummaryRow[]): AllergenStatus {
+  if (tests.length === 0) return 'untested';
+  const statuses = tests.map(statusOfTest);
+  return STATUS_PRECEDENCE.find(s => statuses.includes(s)) ?? 'untested';
 }
 
 // Aggregates allergen/food/symptom names into frequency counts for the Insights chart.
@@ -29,25 +65,41 @@ export function buildAllergenChartData(
   entries: HealthEntrySummaryRow[],
   tests: ExposureTestSummaryRow[],
 ): AllergenBar[] {
-  const freq: Record<string, number> = {};
+  // Keyed case-insensitively: "Milk" logged as an exposure and "milk" typed on
+  // a test are the same food to the person tracking it, and counting them
+  // separately split one food across two bars. The first spelling seen is kept
+  // for display so the chart still reads in the user's own words.
+  const freq: Record<string, { label: string; count: number }> = {};
+  const testsByAllergen: Record<string, ExposureTestSummaryRow[]> = {};
+
+  const tally = (name: string) => {
+    const label = name.trim();
+    if (!label) return null;
+    const key = label.toLowerCase();
+    freq[key] ??= { label, count: 0 };
+    freq[key].count += 1;
+    return key;
+  };
 
   for (const e of entries) {
     if (e.type !== 'Symptom' && e.type !== 'Exposure') continue;
-    const key = e.name.trim();
-    if (!key) continue;
-    freq[key] = (freq[key] ?? 0) + 1;
+    tally(e.name);
   }
 
   for (const t of tests) {
-    const key = t.allergen.trim();
+    const key = tally(t.allergen);
     if (!key) continue;
-    freq[key] = (freq[key] ?? 0) + 1;
+    (testsByAllergen[key] ??= []).push(t);
   }
 
   return Object.entries(freq)
-    .sort((a, b) => b[1] - a[1])
+    .sort((a, b) => b[1].count - a[1].count)
     .slice(0, 5)
-    .map(([label, count]) => ({ label, count }));
+    .map(([key, { label, count }]) => ({
+      label,
+      count,
+      status: resolveAllergenStatus(testsByAllergen[key] ?? []),
+    }));
 }
 
 export function buildDataSummary(

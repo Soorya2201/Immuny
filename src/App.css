@@ -2358,13 +2358,80 @@ body {
 
 .allergen-bar-row {
   display: grid;
-  grid-template-columns: 72px 1fr 22px;
+  grid-template-columns: 72px 1fr auto 22px;
   align-items: center;
   gap: 10px;
 }
 
 .allergen-bar-row--empty {
   grid-template-columns: 1fr;
+}
+
+/* ── Testing status ────────────────────────────────────────────────────────
+   Each allergen carries where it stands in the exposure-testing process. The
+   colour is a fast scan; the label beside it is what actually communicates,
+   because "can my child eat this?" must never depend on telling amber from
+   green. Every row sets --status-* and the pill, dot and bar all read from it. */
+.allergen-bar-row--reacted   { --status-fg: #b42318; --status-bg: #fef3f2; --status-bar: #dc5b4e; }
+.allergen-bar-row--testing   { --status-fg: #8a5a00; --status-bg: #fffaeb; --status-bar: #f0a91f; }
+.allergen-bar-row--planned   { --status-fg: #0b5f7d; --status-bg: var(--teal-light); --status-bar: #56b4d3; }
+.allergen-bar-row--tolerated { --status-fg: #1c7c4a; --status-bg: #ecfdf3; --status-bar: #3d9e6e; }
+.allergen-bar-row--untested  { --status-fg: #667781; --status-bg: #f4f6f8; --status-bar: #b6c2cc; }
+
+.allergen-status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 8px 2px 6px;
+  border-radius: 999px;
+  background: var(--status-bg);
+  color: var(--status-fg);
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  cursor: default;
+}
+
+.allergen-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-bar);
+  flex-shrink: 0;
+}
+
+/* A test that is actually running should read as live, not as one more colour. */
+.allergen-bar-row--testing .allergen-status-dot,
+.allergen-legend-item.allergen-bar-row--testing .allergen-status-dot {
+  animation: allergen-pulse 1.8s ease-in-out infinite;
+}
+
+@keyframes allergen-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(240, 169, 31, 0.55); }
+  50%      { box-shadow: 0 0 0 4px rgba(240, 169, 31, 0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .allergen-status-dot { animation: none !important; }
+}
+
+.allergen-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid #e9edef;
+}
+
+.allergen-legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--status-fg);
 }
 
 .allergen-bar-label {
@@ -2386,8 +2453,10 @@ body {
 .allergen-bar-fill {
   height: 100%;
   border-radius: 6px;
-  background: linear-gradient(90deg, var(--teal) 0%, #0e9bc4 100%);
-  transition: width 0.4s ease;
+  /* Falls back to the teal gradient wherever no status is set (the empty-state
+     placeholder rows), so the chart still looks like itself with no data. */
+  background: var(--status-bar, linear-gradient(90deg, var(--teal) 0%, #0e9bc4 100%));
+  transition: width 0.4s ease, background 0.3s ease;
 }
 
 .allergen-bar-count {

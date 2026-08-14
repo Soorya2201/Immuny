@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildDataSummary, parseInsights } from '../utils/parseInsights';
+import { buildAllergenChartData, buildDataSummary, parseInsights, resolveAllergenStatus } from '../utils/parseInsights';
 import type { HealthEntrySummaryRow, ExposureTestSummaryRow } from '../utils/parseInsights';
 
 const TIME = '2024-06-15T10:00:00Z';
@@ -84,5 +84,56 @@ describe('parseInsights', () => {
     const raw = 'pattern: Something. trend: Something else. tip: Do this.';
     const cards = parseInsights(raw);
     expect(cards).toHaveLength(3);
+  });
+});
+
+describe('allergen testing status', () => {
+  const test = (over: Partial<ExposureTestSummaryRow> = {}): ExposureTestSummaryRow =>
+    ({ allergen: 'Milk', status: 'planned', reactions: null, ...over });
+
+  it('is untested when no test was ever recorded', () => {
+    expect(resolveAllergenStatus([])).toBe('untested');
+  });
+
+  it('tracks a test through its lifecycle', () => {
+    expect(resolveAllergenStatus([test({ status: 'planned' })])).toBe('planned');
+    expect(resolveAllergenStatus([test({ status: 'active' })])).toBe('testing');
+    expect(resolveAllergenStatus([test({ status: 'completed' })])).toBe('tolerated');
+    expect(resolveAllergenStatus([test({ status: 'completed', reactions: 'Hives on arms' })])).toBe('reacted');
+  });
+
+  it('does not read a written "none" as a reaction', () => {
+    for (const none of ['none', 'None.', 'no', 'N/A', 'nothing', 'no reactions', '   ']) {
+      expect(resolveAllergenStatus([test({ status: 'completed', reactions: none })])).toBe('tolerated');
+    }
+  });
+
+  it('keeps a recorded reaction visible even once a newer test is underway', () => {
+    const status = resolveAllergenStatus([
+      test({ status: 'completed', reactions: 'Swelling' }),
+      test({ status: 'active' }),
+    ]);
+    expect(status).toBe('reacted');
+  });
+
+  it('prefers an in-progress test over a merely planned one', () => {
+    expect(resolveAllergenStatus([test({ status: 'planned' }), test({ status: 'active' })])).toBe('testing');
+  });
+
+  it('attaches the status to the matching chart bar, ignoring case', () => {
+    const bars = buildAllergenChartData(
+      [{ type: 'Exposure', name: 'Milk', time: '2026-08-01T10:00' }],
+      [{ allergen: 'milk', status: 'active', reactions: null }],
+    );
+    expect(bars).toHaveLength(1);
+    expect(bars[0]).toMatchObject({ label: 'Milk', count: 2, status: 'testing' });
+  });
+
+  it('marks a logged food with no test as untested', () => {
+    const bars = buildAllergenChartData(
+      [{ type: 'Symptom', name: 'Peanuts', time: '2026-08-01T10:00' }],
+      [],
+    );
+    expect(bars[0].status).toBe('untested');
   });
 });
