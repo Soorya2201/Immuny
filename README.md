@@ -1,100 +1,79 @@
-# 🛡️ ImmunyAI: Health Ally
+# ImmunyAI
 
-![React](https://img.shields.io/badge/React-20232A?style=for-the-badge&logo=react&logoColor=61DAFB)
-![TypeScript](https://img.shields.io/badge/TypeScript-007ACC?style=for-the-badge&logo=typescript&logoColor=white)
-![AWS Amplify](https://img.shields.io/badge/AWS_Amplify-FF9900?style=for-the-badge&logo=aws-amplify&logoColor=white)
-![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
-![Hugging Face](https://img.shields.io/badge/Hugging_Face-FFD21E?style=for-the-badge&logo=huggingface&logoColor=black)
+**An allergy tracker for households. Log meals, symptoms and medications by voice or photo, get answers from an AI companion that remembers the conversation, and hand your allergist a clinician-ready visit summary PDF.**
 
-**ImmunyAI** is an advanced, AI-driven personal health tracker and advisor designed to bridge the gap between reactive symptom treatment and proactive health management. 
+![React](https://img.shields.io/badge/React-TypeScript-3178C6?style=flat-square)
+![AWS Amplify](https://img.shields.io/badge/AWS-Amplify%20Gen%202-FF9900?style=flat-square)
+![Bedrock](https://img.shields.io/badge/LLM-Amazon%20Nova%20Micro-232F3E?style=flat-square)
+![Tests](https://img.shields.io/badge/tests-280%20passing-brightgreen?style=flat-square)
+![License](https://img.shields.io/badge/license-MIT-yellow?style=flat-square)
 
-By combining **Vision-Language Models (VLMs)**, **Voice UI**, and **IoT Wearable Data**, ImmunyAI continuously monitors patient well-being, identifies visual symptoms, and provides actionable pathways to safely build allergen tolerance.
+## Highlights
 
----
+- **Serverless full stack on AWS.** Amplify Gen 2 with Cognito auth, a 12-model GraphQL data layer with owner-scoped authorization, and six Lambda functions wired through CDK (Bedrock, Textract, DynamoDB, EventBridge).
+- **Voice logging that doesn't lose data.** The LLM is called once, to understand the opening sentence ("my son has hives on his arm"). Every follow-up answer ("a three", "this morning") is parsed deterministically, so severity and timing are never mangled or silently dropped.
+- **Label scanning.** Photos of ingredient and nutrition labels go through Amazon Textract (up to 5 images per call). The app matches the text against a shared allergen vocabulary (the FDA "Big 9") to produce a plain-language "this food contains: peanuts, milk" summary.
+- **Clinical export built to be honest.** The allergist visit summary never states more than the data supports. Unrecorded fields print as "not recorded", never 0. Associations are labelled as associations. Tolerated exposures are shown next to reactions, so a clinician can judge consistency. See the samples in [`docs/reference/`](docs/reference/).
+- **Built for households.** One account manages several patients (a parent logging for a child). The AI is told whose symptoms it is discussing and uses that person's relationship and pronouns.
+- **280 unit tests across 13 suites** (Vitest), covering the voice interview engine, clinical report analysis, PDF layout, allergen matching, medication schedules and chat threading.
 
-## Why ImmunyAI?
-Managing daily health, especially severe allergies, shouldn't be a guessing game. ImmunyAI replaces fragmented health apps with a unified, context-aware intelligence. It doesn't just log data; it *understands* it. 
+## Features
 
-Whether it's analyzing a photo of a sudden skin rash, passively monitoring a smartwatch for anaphylactic shock signatures (SpO2 drops, HR spikes), or generating micro-dosing schedules for exposure therapy, ImmunyAI processes complex, multi-dimensional health data in real-time.
+| Area | What it does |
+|---|---|
+| AI companion | Multi-turn allergy and health chat on **Amazon Nova Micro** (Bedrock), with session context (allergens, recent symptoms, subject of the conversation) injected into the prompt |
+| Voice logger | Browser speech-to-text (Web Speech API), then a guided follow-up interview that fills a structured `HealthEntry` (type, severity, body area, time, follow-up check-in) |
+| Food and label tracking | Meals with quantities and Textract OCR of ingredient and nutrition labels |
+| Medications | Per-patient schedules and a dose log |
+| Exposure testing | Guided, logged exposure sessions with a safety checklist before starting |
+| Insights | Symptom overview, allergen chart and calendar, plus LLM-generated insights parsed into structured cards |
+| Clinician export | Allergy visit summary PDF: reaction timeline, resolution times, cofactors, epinephrine availability, emergency care |
+| Community and news | Posts, comments and likes, plus an allergy-news feed scraped every 48 hours by a scheduled Lambda |
+| Watch status | A simulated smartwatch vitals card (heart rate, SpO2) as a placeholder for wearable integration |
 
----
+## Architecture
 
-## ✨ Core Features & Capabilities
+```
+React + TypeScript (Vite)
+   │  Amplify Data client (GraphQL, Cognito-authenticated)
+   ▼
+AWS AppSync ── DynamoDB models (owner-scoped): UserProfile, FamilyMember, HealthEntry,
+   │                   Medication, MedicationLog, ExposureTest, ChatThread, ChatMessage,
+   │                   CommunityPost, PostComment, PostLike, NewsArticle
+   │
+   ├── askNovaMicro         ─► Amazon Bedrock (amazon.nova-micro-v1)
+   ├── extractLabelText     ─► Amazon Textract DetectDocumentText
+   ├── logConversationEvent ─► DynamoDB (90-day TTL)
+   ├── getConversationLogs  ─► DynamoDB query, newest first
+   ├── fetchAllergyNews     ─► EventBridge rate(2 days), plus a best-effort run on deploy
+   └── askMedGemma          ─► MedGemma 1.5 4B on a GPU tunnel (experimental, not called by the UI)
+```
 
-### 1. 🤖 Ask Immuny (Multimodal AI Assistant)
-Powered by Google's medical-grade **MedGemma 1.5 (4B)** model, this chat module goes far beyond text.
-* **Computer Vision:** Upload photos of skin flare-ups for instant identification, scan prescription labels for dosage checks, or upload images of meals to generate an allergen "compatibility score."
-* **Voice-Native Interface:** Fully hands-free operation using built-in Web Speech API for both speech-to-text recognition and natural text-to-speech responses.
-* **Context-Aware:** The AI retains memory of the user's known allergens and historical reactions to provide highly personalized advice.
+## Engineering decisions
 
-### 2. ⌚ Real-Time Health Logger & IoT Integration
-A central medical diary that actively protects the user.
-* **Continuous Vitals Ingest:** Polls simulated wearable data (Heart Rate, SpO2, Respiratory Rate, Skin Temperature).
-* **Automated Threat Detection:** Algorithmically detects biometric anomalies (e.g., sudden heart rate spikes paired with oxygen drops).
-* **AI SOS Triggers:** Automatically interrupts the UI with critical alerts and generates emergency intervention instructions (e.g., EpiPen protocols) when danger thresholds are crossed.
-* **Voice Logging:** Users can log meals, medications, or symptoms effortlessly using voice dictation.
+- **Deterministic parsing after one LLM call** (`src/utils/voiceInterview.ts`). Short constrained answers are cheaper, faster and more reliable to parse with rules than to send back to a model.
+- **Nullable strings for clinical fields.** "Answered no" and "never asked" are different facts in a medical document, so `epinephrineAvailable`, `emergencyCare` and similar fields are nullable rather than booleans.
+- **Pure analysis, dumb renderer.** `clinicalReport.ts` turns raw entries into report content synchronously and testably; the PDF layer only draws.
+- **Non-blocking deploy hooks.** The news pre-fetch on deploy is fire-and-forget with errors ignored, so a failed "nice to have" can't roll back the whole CloudFormation stack.
+- **A real 48-hour schedule.** A CDK `rate()` rule is used because Amplify's `schedule` shorthand silently runs daily for "every N days".
 
-### 3. 🧪 Proactive Exposure Testing
-Transforms the app from a passive tracker into an active clinical tool.
-* **Guided Tolerance Building:** Generates structured, micro-dosing paths to help users safely build resistance to specific allergens.
-* **Safety First:** Enforces a rigorous safety checklist (baseline symptoms, emergency meds proximity) before allowing tests to begin.
-* **Clinical Monitoring:** Tracks serving context, precise dosages (down to milligrams), elapsed time, and subsequent reactions in a structured database.
+## Tech stack
 
----
+React 19, TypeScript, Vite, Vitest · AWS Amplify Gen 2 (AppSync, Cognito, DynamoDB, Lambda), AWS CDK · Amazon Bedrock (Nova Micro), Amazon Textract, EventBridge · Web Speech API
 
-## 🛠️ Tech Stack & Architecture
+## Run locally
 
-This application utilizes a decoupled architecture, separating the lightweight frontend from the heavy, GPU-bound inference engine.
-
-**Frontend (Client)**
-* **Framework:** React + TypeScript
-* **State & Auth:** AWS Amplify (Gen 2)
-* **Voice Services:** Browser-native `SpeechRecognition` and `SpeechSynthesis` APIs (Zero-cost, zero-latency voice UI).
-* **Styling:** Custom CSS with dynamic alert rendering.
-
-**Backend (AI Inference Engine)**
-* **Server:** Python / Flask / Flask-CORS
-* **Model:** `google/medgemma-1.5-4b-it` (Vision-Language Model)
-* **ML Framework:** PyTorch, Hugging Face `transformers`, `accelerate` (using `bfloat16` precision for optimized VRAM usage).
-* **Infrastructure:** Hosted on Google Colab (T4 GPU) using `pyngrok` to establish a secure, ephemeral tunnel to the AWS-hosted frontend. 
-
-### Data Flow Diagram
-1. **User Action:** User speaks a query or uploads an image.
-2. **Frontend Processing:** React converts voice to text, or converts the image to a Base64 string.
-3. **API Tunnel:** Payload is sent via HTTPS via Ngrok to the Colab GPU instance.
-4. **Context Injection:** Python backend appends the user's latest wearable vitals and medical history to the prompt.
-5. **Inference:** MedGemma processes the multimodal prompt and streams back clinical guidance.
-6. **Response:** Frontend renders markdown text and speaks the response aloud.
-
----
-
-## 💻 Getting Started (Local Development)
-
-### 1. Start the AI Backend (Google Colab)
-Because the MedGemma model requires a dedicated GPU (16GB+ VRAM), the backend is hosted in a Google Colab notebook.
-1. Open the provided `Colab_Backend.ipynb` file in Google Colab.
-2. Change the runtime type to **T4 GPU**.
-3. Insert your Hugging Face Token and Ngrok Auth Token in the designated variables.
-4. Run all cells. The final output will yield a public Ngrok URL (e.g., `https://xxxx.ngrok-free.app`).
-
-### 2. Configure the Frontend
-1. Clone this repository: `git clone https://github.com/Soorya2201/Immuny.git`
-2. Navigate to the project directory: `cd Immuny`
-3. Install dependencies: `npm install`
-4. Open `src/App.tsx` and update the `COLAB_BASE_URL` constant with the Ngrok URL generated in step 1:
-   ```typescript
-   const COLAB_BASE_URL = "https://YOUR-NGROK-URL.ngrok-free.app";
-   ```
-5. Start the dev server: `npm run dev`
-
----
+```bash
+npm install
+npx ampx sandbox      # deploys a personal Amplify backend (needs AWS credentials with Bedrock access)
+npm run dev
+npm test              # 280 tests
+```
 
 ## Status
 
-This is an early-access build — the AI inference backend runs on an ephemeral Colab/Ngrok tunnel rather than persistent infrastructure, so it's best run locally following the steps above rather than treated as an always-on hosted service.
-
----
+A working prototype, not a medical device. It does not diagnose, and the clinician export is a record of what the user logged. Wearable vitals are simulated. The MedGemma path is experimental and depends on a temporary GPU tunnel.
 
 ## License
 
-MIT — see [LICENSE](LICENSE) for details.
+MIT — see [LICENSE](LICENSE).
