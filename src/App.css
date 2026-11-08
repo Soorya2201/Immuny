@@ -559,7 +559,7 @@ html:has(.app-container) body {
 .chat-disclaimer {
   margin: 8px 0 0;
   padding: 0 4px;
-  font-size: 11px;
+  font-size: 10px;
   line-height: 1.4;
   color: #8a97a0;
   text-align: center;
@@ -672,20 +672,28 @@ html:has(.app-container) body {
   flex-shrink: 0;
   border: none;
   border-radius: 50%;
-  background: var(--teal);
+  /* Same deep blue as the voice mic button, so the two primary actions match. */
+  background: var(--mic-blue);
   color: #fff;
   cursor: pointer;
   transition: background 0.15s, transform 0.12s;
 }
 
 .chat-send-btn:hover:not(:disabled) {
-  background: #026e91;
+  background: #174d82;
   transform: scale(1.05);
 }
 
+.chat-send-btn:focus-visible {
+  outline: 2px solid var(--mic-blue);
+  outline-offset: 2px;
+}
+
+/* Pale blue while there is nothing to send: still reads as the send button,
+   but clearly inactive next to the deep blue it turns once you type. */
 .chat-send-btn:disabled {
-  background: #eceff1;
-  color: #b0bbc2;
+  background: #dce8f4;
+  color: #7f9fc0;
   cursor: not-allowed;
 }
 
