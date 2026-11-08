@@ -8,7 +8,8 @@ import { getConversationLogs } from './functions/get-conversation-logs/resource'
 import { fetchAllergyNews } from './functions/fetch-allergy-news/resource';
 import { extractLabelText } from './functions/extract-label-text/resource';
 import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
-import { Duration } from 'aws-cdk-lib';
+import { CfnOutput, Duration, RemovalPolicy } from 'aws-cdk-lib';
+import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
 import { Rule, Schedule } from 'aws-cdk-lib/aws-events';
 import { LambdaFunction } from 'aws-cdk-lib/aws-events-targets';
 import { AwsCustomResource, AwsCustomResourcePolicy, PhysicalResourceId } from 'aws-cdk-lib/custom-resources';
@@ -41,6 +42,32 @@ backend.askNovaMicro.resources.lambda.addToRolePolicy(
     resources: ['arn:aws:bedrock:*::foundation-model/amazon.nova-micro-v1:0'],
   }),
 );
+
+// ── AI usage & cost table (backend only) ──────────────────────────────────────
+// One row per Nova Micro call: tokens, the prices charged and the cost in USD.
+// It is deliberately not an Amplify data model, so it has no GraphQL API and
+// the app cannot read or write it; only the Nova function can write, and it is
+// read with PartiQL from the console or scripts/ai-usage.mjs.
+// Lives in the function's own stack to avoid a cross-stack reference.
+const novaStack = backend.askNovaMicro.stack;
+const aiUsageTable = new Table(novaStack, 'AiUsage', {
+  partitionKey: { name: 'userId', type: AttributeType.STRING },
+  sortKey: { name: 'sk', type: AttributeType.STRING }, // <ISO time>#<uuid>
+  billingMode: BillingMode.PAY_PER_REQUEST,
+  pointInTimeRecoverySpecification: { pointInTimeRecoveryEnabled: true },
+  // Cost records outlive a deleted sandbox or stack.
+  removalPolicy: RemovalPolicy.RETAIN,
+});
+// All users' calls for a day, in time order, without a full scan.
+aiUsageTable.addGlobalSecondaryIndex({
+  indexName: 'byDay',
+  partitionKey: { name: 'day', type: AttributeType.STRING },
+  sortKey: { name: 'createdAt', type: AttributeType.STRING },
+});
+aiUsageTable.grantWriteData(backend.askNovaMicro.resources.lambda);
+backend.askNovaMicro.addEnvironment('AI_USAGE_TABLE', aiUsageTable.tableName);
+new CfnOutput(novaStack, 'AiUsageTableName', { value: aiUsageTable.tableName });
+backend.addOutput({ custom: { aiUsageTable: aiUsageTable.tableName } });
 
 // ── Logger: allow DynamoDB writes ────────────────────────────────────────────
 backend.logConversationEvent.resources.lambda.addToRolePolicy(

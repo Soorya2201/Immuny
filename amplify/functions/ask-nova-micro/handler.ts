@@ -3,6 +3,7 @@ import {
     InvokeModelCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 import type { Schema } from "../../data/resource";
+import { NOVA_MICRO, recordNovaUsage } from "./usage";
 
 const bedrock = new BedrockRuntimeClient({ region: "us-east-1" });
 
@@ -139,16 +140,31 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
         });
 
         const cmd = new InvokeModelCommand({
-            modelId: "amazon.nova-micro-v1:0",
+            modelId: NOVA_MICRO.modelId,
             contentType: "application/json",
             accept: "application/json",
             body,
         });
 
+        const startedAt = Date.now();
         const res = await bedrock.send(cmd);
+        const latencyMs = Date.now() - startedAt;
         const raw = JSON.parse(new TextDecoder().decode(res.body)) as {
             output?: { message?: { content?: { text?: string }[] } };
+            usage?: { inputTokens?: number; outputTokens?: number };
         };
+
+        // Bills are per token, so record what Bedrock says it counted. The
+        // caller is identified from the Cognito token on the request, not from
+        // anything the client sends.
+        const identity = event.identity as { sub?: string } | null | undefined;
+        await recordNovaUsage({
+            userId: identity?.sub ?? "unknown",
+            mode: extracting ? "extract" : phrasing ? "phrase" : "chat",
+            inputTokens: raw.usage?.inputTokens ?? 0,
+            outputTokens: raw.usage?.outputTokens ?? 0,
+            latencyMs,
+        });
         const fallback = extracting
             ? "{}"
             : "I'm here to help! Could you tell me a bit more about what's going on?";
