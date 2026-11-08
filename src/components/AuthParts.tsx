@@ -1,14 +1,12 @@
 import { useState } from 'react';
 import { useAuthenticator } from '@aws-amplify/ui-react';
 import { getRememberMe, setRememberMe } from '../utils/rememberMe';
+import logo from '../assets/immuny-logo-wordmark.png';
 
 function CardHeader({ title, subtitle }: { title: string; subtitle: string }) {
   return (
     <header className="auth-card-header">
-      <div className="auth-brand-row">
-        <span>Immuny</span>
-        <span>Allergy AI Ally</span>
-      </div>
+      <img className="auth-logo" src={logo} alt="Immuny" width={289} height={72} />
       <h1 className="auth-card-title">{title}</h1>
       <p className="auth-card-subtitle">{subtitle}</p>
     </header>

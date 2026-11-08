@@ -76,14 +76,17 @@
   text-shadow: var(--lg-text-shadow);
 }
 
-.auth-brand-row {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 32px;
-  font-size: 0.7rem;
-  font-weight: 500;
-  color: var(--lg-text);
+/* Logo in the card's top-left corner. Sized by height so the bee and the
+   wordmark keep their proportions. */
+.auth-logo {
+  display: block;
+  height: 28px;
+  width: auto;
+  margin-bottom: 28px;
+  /* The wordmark is blue on blue glass; a faint halo separates the two. */
+  filter: drop-shadow(0 0 6px rgba(255, 255, 255, 0.6));
+  user-select: none;
+  -webkit-user-drag: none;
 }
 
 .auth-card-title,
