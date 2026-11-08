@@ -4,6 +4,7 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../amplify/data/resource';
 import '@aws-amplify/ui-react/styles.css';
 import './App.css';
+import { authComponents, authFormFields } from './components/authConfig';
 import beaImg from './assets/bea.png';
 
 // ─── COMPONENT IMPORTS ────────────────────────────────────────────────────────
@@ -1276,7 +1277,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
 
 export default function App() {
   return (
-    <Authenticator>
+    <Authenticator components={authComponents} formFields={authFormFields}>
       {({ user }) => {
         const userId = user?.userId ?? 'anonymous';
         const userEmail = user?.signInDetails?.loginId;

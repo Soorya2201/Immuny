@@ -3,8 +3,10 @@ import ReactDOM from 'react-dom/client';
 import App from './App.tsx';
 import { Amplify } from 'aws-amplify';
 import outputs from '../amplify_outputs.json';
+import { applyRememberMe } from './utils/rememberMe';
 
 Amplify.configure(outputs);
+applyRememberMe();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>

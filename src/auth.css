@@ -1,0 +1,408 @@
+/* ─── Auth screen: clear "liquid glass" card over the wave background ───────
+   Scoped to [data-amplify-authenticator], which Amplify only renders while
+   signed out, so none of this reaches the app itself. */
+
+[data-amplify-authenticator] {
+  --lg-text: #ffffff;
+  --lg-text-soft: rgba(255, 255, 255, 0.9);
+  --lg-field: rgba(255, 255, 255, 0.24);
+  --lg-field-hover: rgba(255, 255, 255, 0.3);
+  --lg-radius: 28px;
+  --lg-inset: 24px;
+  /* Pale parts of the background sit under white text; a soft shadow keeps it
+     legible without darkening the glass. */
+  --lg-text-shadow: 0 1px 10px rgba(10, 28, 70, 0.45);
+
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: max(24px, env(safe-area-inset-top)) 16px max(24px, env(safe-area-inset-bottom));
+  font-family: 'Montserrat', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  color: var(--lg-text);
+  background: url('./assets/auth-bg.jpg') center / cover no-repeat, #4f73a8;
+}
+
+[data-amplify-authenticator] [data-amplify-container] {
+  width: min(100%, 308px);
+  place-self: center;
+}
+
+/* ─── The card ──────────────────────────────────────────────────────────────
+   Liquid glass is mostly clear: a light blur, a lift in brightness, and light
+   caught along the rim (inset glows) instead of a drawn border. */
+[data-amplify-authenticator] [data-amplify-router] {
+  position: relative;
+  overflow: hidden;
+  border: none;
+  border-radius: var(--lg-radius);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.1) 0%, rgba(255, 255, 255, 0.02) 50%, rgba(255, 255, 255, 0.08) 100%),
+    rgba(30, 60, 120, 0.14);
+  -webkit-backdrop-filter: blur(5px) saturate(135%) brightness(1.04);
+  backdrop-filter: blur(5px) saturate(135%) brightness(1.04);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.18),
+    inset 0 2px 14px rgba(255, 255, 255, 0.28),
+    inset 0 -4px 22px rgba(255, 255, 255, 0.32),
+    inset 6px 0 18px -10px rgba(255, 255, 255, 0.4),
+    inset -6px 0 18px -10px rgba(255, 255, 255, 0.4),
+    0 24px 60px -28px rgba(6, 18, 52, 0.55);
+}
+
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  [data-amplify-authenticator] [data-amplify-router] {
+    background-color: rgba(40, 70, 130, 0.7);
+  }
+}
+
+/* The sign-in / sign-up switch lives in the card footer now. */
+[data-amplify-authenticator] .amplify-tabs__list {
+  display: none;
+}
+
+[data-amplify-authenticator] .amplify-tabs__panel {
+  padding: 0;
+}
+
+[data-amplify-authenticator] [data-amplify-form] {
+  padding: 0 var(--lg-inset) 26px;
+}
+
+/* ─── Header ───────────────────────────────────────────────────────────── */
+.auth-card-header {
+  padding: 18px 20px 20px;
+  text-shadow: var(--lg-text-shadow);
+}
+
+.auth-brand-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 32px;
+  font-size: 0.7rem;
+  font-weight: 500;
+  color: var(--lg-text);
+}
+
+.auth-card-title,
+.auth-card-subtitle {
+  padding: 0 calc(var(--lg-inset) - 20px);
+}
+
+.auth-card-title {
+  margin: 0 0 8px;
+  font-family: inherit;
+  font-size: 1.75rem;
+  line-height: 1.1;
+  font-weight: 500;
+  letter-spacing: 0;
+  color: var(--lg-text);
+}
+
+.auth-card-subtitle {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  font-weight: 500;
+  color: var(--lg-text);
+}
+
+/* Built-in screens (confirm code, reset password…) keep the same voice. */
+[data-amplify-authenticator] .amplify-heading {
+  color: var(--lg-text);
+  font-family: inherit;
+  font-weight: 500;
+  text-shadow: var(--lg-text-shadow);
+}
+
+[data-amplify-authenticator] .amplify-text,
+[data-amplify-authenticator] .amplify-label {
+  color: var(--lg-text-soft);
+  font-family: inherit;
+}
+
+/* ─── Fields: flat translucent slabs, no outline ───────────────────────── */
+[data-amplify-authenticator] fieldset.amplify-flex,
+[data-amplify-authenticator] .amplify-authenticator__column {
+  gap: 10px;
+}
+
+[data-amplify-authenticator] .amplify-field-group {
+  border: none;
+  border-radius: 6px;
+  background: var(--lg-field);
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+[data-amplify-authenticator] .amplify-field-group:hover {
+  background: var(--lg-field-hover);
+}
+
+[data-amplify-authenticator] .amplify-field-group:focus-within {
+  background: var(--lg-field-hover);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.55);
+}
+
+[data-amplify-authenticator] .amplify-input,
+[data-amplify-authenticator] .amplify-select,
+[data-amplify-authenticator] .amplify-textarea {
+  height: 40px;
+  padding: 0 14px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--lg-text);
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 500;
+  box-shadow: none;
+}
+
+[data-amplify-authenticator] .amplify-input:focus {
+  border: none;
+  box-shadow: none;
+}
+
+[data-amplify-authenticator] .amplify-input::placeholder {
+  color: rgba(255, 255, 255, 0.88);
+  opacity: 1;
+}
+
+[data-amplify-authenticator] .amplify-input:-webkit-autofill {
+  -webkit-text-fill-color: #fff;
+  caret-color: #fff;
+  transition: background-color 9999s ease-out 0s;
+}
+
+[data-amplify-authenticator] .amplify-field__show-password {
+  height: 40px;
+  width: 38px;
+  padding: 0;
+  border: none;
+  border-radius: 0 6px 6px 0;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+[data-amplify-authenticator] .amplify-field__show-password:hover,
+[data-amplify-authenticator] .amplify-field__show-password:focus {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  box-shadow: none;
+}
+
+[data-amplify-authenticator] .amplify-field__show-password:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: -4px;
+}
+
+[data-amplify-authenticator] .amplify-field__error-message,
+[data-amplify-authenticator] [data-amplify-sign-up-errors] {
+  color: #ffe1e1;
+  font-size: 0.82rem;
+  text-shadow: var(--lg-text-shadow);
+}
+
+[data-amplify-authenticator] .amplify-field-group:has(.amplify-input[aria-invalid='true']) {
+  box-shadow: 0 0 0 2px rgba(255, 170, 170, 0.8);
+}
+
+/* ─── Order inside the sign-in column ──────────────────────────────────────
+   Amplify renders fields, error, button, footer. The footer is two siblings,
+   and the options row is lifted between the fields and the button. */
+[data-amplify-authenticator-signin] > .amplify-flex > fieldset { order: 0; }
+[data-amplify-authenticator-signin] > .amplify-flex > .amplify-alert { order: 1; }
+[data-amplify-authenticator-signin] .auth-options-row { order: 2; }
+[data-amplify-authenticator-signin] > .amplify-flex > .amplify-button--primary { order: 3; }
+[data-amplify-authenticator-signin] .auth-switch { order: 4; }
+
+.auth-options-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin: -2px 0 16px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-shadow: var(--lg-text-shadow);
+}
+
+.auth-remember {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: var(--lg-text);
+}
+
+.auth-remember input {
+  appearance: none;
+  -webkit-appearance: none;
+  display: grid;
+  place-content: center;
+  width: 12px;
+  height: 12px;
+  margin: 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.auth-remember input::after {
+  content: '';
+  width: 6px;
+  height: 3px;
+  margin-top: -1px;
+  border-left: 1.5px solid #fff;
+  border-bottom: 1.5px solid #fff;
+  transform: rotate(-45deg) scale(0);
+  transition: transform 0.12s ease;
+}
+
+.auth-remember input:checked::after {
+  transform: rotate(-45deg) scale(1);
+}
+
+.auth-remember input:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
+}
+
+/* Plain underlined text actions: "Forgot password", "Sign up", "Log in". */
+.auth-text-link {
+  padding: 0;
+  border: none;
+  border-radius: 2px;
+  background: none;
+  color: var(--lg-text);
+  font: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-thickness: 1px;
+  cursor: pointer;
+}
+
+.auth-text-link:hover {
+  border: none;
+  opacity: 0.85;
+}
+
+.auth-text-link:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+.auth-switch {
+  margin: 14px 0 0;
+  text-align: center;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--lg-text);
+  text-shadow: var(--lg-text-shadow);
+}
+
+/* ─── Buttons ────────────────────────────────────────────────────────────── */
+/* Primary: a centred outline pill, empty inside. */
+[data-amplify-authenticator] .amplify-button--primary {
+  align-self: center;
+  width: min(62%, 186px);
+  height: 40px;
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-shadow: var(--lg-text-shadow);
+  box-shadow: none;
+  transition: background-color 0.2s ease, transform 0.15s ease;
+}
+
+[data-amplify-authenticator] .amplify-button--primary:hover,
+[data-amplify-authenticator] .amplify-button--primary:focus {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: #fff;
+  color: #fff;
+  box-shadow: none;
+}
+
+[data-amplify-authenticator] .amplify-button--primary:active {
+  transform: scale(0.98);
+}
+
+[data-amplify-authenticator] .amplify-button--primary:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 3px;
+}
+
+[data-amplify-authenticator] .amplify-button--primary[disabled],
+[data-amplify-authenticator] .amplify-button--primary.amplify-button--loading {
+  background: transparent;
+  color: #fff;
+  opacity: 0.65;
+}
+
+/* Sign-up's button sits a little lower, matching the gap on sign-in. */
+[data-amplify-authenticator-signup] .amplify-button--primary {
+  margin-top: 10px;
+}
+
+/* Secondary actions on the other screens ("Back to Sign In", resend code). */
+[data-amplify-authenticator] .amplify-button--link {
+  color: var(--lg-text);
+  font-family: inherit;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  background: transparent;
+  border: none;
+}
+
+[data-amplify-authenticator] .amplify-button--link:hover,
+[data-amplify-authenticator] .amplify-button--link:focus {
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  box-shadow: none;
+}
+
+[data-amplify-authenticator] .amplify-button--default:not(.amplify-field__show-password) {
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  border-radius: 999px;
+  background: transparent;
+  color: #fff;
+  font-family: inherit;
+}
+
+/* ─── Alerts (wrong password, user exists…) ──────────────────────────────── */
+[data-amplify-authenticator] .amplify-alert {
+  border: none;
+  border-radius: 8px;
+  background: rgba(120, 20, 40, 0.4);
+  color: #fff;
+  font-size: 0.88rem;
+}
+
+[data-amplify-authenticator] .amplify-alert__icon,
+[data-amplify-authenticator] .amplify-alert__dismiss {
+  color: #fff;
+}
+
+/* ─── Touch screens ──────────────────────────────────────────────────────
+   iOS zooms the page into any input under 16px when it is focused, which
+   would throw the centred card off screen. Phones get 16px field text. */
+@media (hover: none) and (pointer: coarse) {
+  [data-amplify-authenticator] .amplify-input {
+    font-size: 16px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  [data-amplify-authenticator] * {
+    transition: none !important;
+  }
+}
