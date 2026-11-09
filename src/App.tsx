@@ -4,7 +4,7 @@ import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../amplify/data/resource';
 import '@aws-amplify/ui-react/styles.css';
 import './App.css';
-import { authComponents, authFormFields } from './components/authConfig';
+import { authComponents, authFormFields, authServices } from './components/authConfig';
 import beaImg from './assets/bea.png';
 
 // ─── COMPONENT IMPORTS ────────────────────────────────────────────────────────
@@ -1298,7 +1298,7 @@ export default function App() {
     <>
     {/* Shown on every screen, login included. Decorative: it never takes taps. */}
     <div className="beta-badge" role="note">Beta test · features may change</div>
-    <Authenticator components={authComponents} formFields={authFormFields}>
+    <Authenticator components={authComponents} formFields={authFormFields} services={authServices}>
       {({ user }) => {
         const userId = user?.userId ?? 'anonymous';
         const userEmail = user?.signInDetails?.loginId;

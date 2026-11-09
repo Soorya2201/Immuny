@@ -1,5 +1,6 @@
 import { useState } from 'react';
-import { useAuthenticator } from '@aws-amplify/ui-react';
+import { Authenticator, useAuthenticator } from '@aws-amplify/ui-react';
+import { PRIVACY_URL, TERMS_URL } from './legalLinks';
 import { getRememberMe, setRememberMe } from '../utils/rememberMe';
 import logo from '../assets/immuny-logo-wordmark.png';
 
@@ -64,5 +65,56 @@ export function SignUpFooter() {
         Log in
       </button>
     </p>
+  );
+}
+
+// Sign-up only: Amplify's own fields, then the two required agreements. The
+// checkbox names are not Cognito attributes, so Amplify keeps them out of the
+// sign-up request; validateCustomSignUp in authConfig.ts enforces them.
+// Amplify validates as soon as the form opens and keeps Sign Up disabled until
+// both boxes are ticked, so the message waits until this box has been touched;
+// otherwise a fresh form would open covered in red.
+function Agreement({ name, error: rawError, children }: { name: string; error?: string; children: React.ReactNode }) {
+  const [touched, setTouched] = useState(false);
+  const error = touched ? rawError : undefined;
+  return (
+    <div className="auth-agree">
+      <label className="auth-agree-row">
+        <input
+          type="checkbox"
+          name={name}
+          value="yes"
+          required
+          onChange={() => setTouched(true)}
+          aria-invalid={!!error}
+          aria-describedby={error ? `${name}-error` : undefined}
+        />
+        <span>{children}</span>
+      </label>
+      {error && <p id={`${name}-error`} className="auth-agree-error" role="alert">{error}</p>}
+    </div>
+  );
+}
+
+export function SignUpFormFields() {
+  const { validationErrors } = useAuthenticator((c) => [c.validationErrors]);
+  const err = (k: string) => {
+    const v = validationErrors[k];
+    return Array.isArray(v) ? v[0] : v;
+  };
+  return (
+    <>
+      <Authenticator.SignUp.FormFields />
+      <div className="auth-agreements">
+        <Agreement name="acceptTerms" error={err('acceptTerms')}>
+          I am 18 or older and agree to the{' '}
+          <a href={TERMS_URL} target="_blank" rel="noopener noreferrer">Terms of Service</a>
+        </Agreement>
+        <Agreement name="acceptPrivacy" error={err('acceptPrivacy')}>
+          I have read the{' '}
+          <a href={PRIVACY_URL} target="_blank" rel="noopener noreferrer">Privacy Policy</a>
+        </Agreement>
+      </div>
+    </>
   );
 }

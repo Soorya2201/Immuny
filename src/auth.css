@@ -409,3 +409,71 @@
     transition: none !important;
   }
 }
+
+/* ─── Sign-up agreements (Terms, Privacy) ─────────────────────────────────
+   Same glass checkbox as "Remember me", one per line, links underlined. */
+.auth-agreements {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.auth-agree-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 0.7rem;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--lg-text);
+  text-shadow: var(--lg-text-shadow);
+}
+
+.auth-agree-row input {
+  appearance: none;
+  -webkit-appearance: none;
+  flex-shrink: 0;
+  display: grid;
+  place-content: center;
+  width: 12px;
+  height: 12px;
+  margin: 1px 0 0;
+  border: 1.5px solid rgba(255, 255, 255, 0.9);
+  border-radius: 2px;
+  background: transparent;
+  cursor: pointer;
+}
+
+.auth-agree-row input::after {
+  content: '';
+  width: 6px;
+  height: 3px;
+  margin-top: -1px;
+  border-left: 1.5px solid #fff;
+  border-bottom: 1.5px solid #fff;
+  transform: rotate(-45deg) scale(0);
+  transition: transform 0.12s ease;
+}
+
+.auth-agree-row input:checked::after { transform: rotate(-45deg) scale(1); }
+.auth-agree-row input:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.auth-agree-row input[aria-invalid='true'] { border-color: #ffd1d1; }
+
+.auth-agree-row a {
+  color: #fff;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.auth-agree-error {
+  margin: 3px 0 0 20px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #fff;
+  background: rgba(185, 28, 28, 0.75);
+  border-radius: 6px;
+  padding: 2px 6px;
+  width: fit-content;
+}
