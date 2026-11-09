@@ -249,14 +249,28 @@ export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
             />
             {ocrIngredients && (
               <div className="ocr-extracted-box">
-                <span className="ocr-extracted-box-label">Scanned ingredients</span>
-                <div className="ocr-extracted-box-text">{ocrIngredients}</div>
+                <label className="ocr-extracted-box-label" htmlFor="ocrIngredients-review">Scanned ingredients: check and correct</label>
+                <textarea
+                  id="ocrIngredients-review"
+                  className="ocr-extracted-box-text"
+                  value={ocrIngredients}
+                  onChange={e => setOcrIngredients(e.target.value)}
+                  rows={4}
+                />
+                <span className="ocr-extracted-box-hint">Scanning can misread words. Compare with the package and fix anything wrong before saving.</span>
               </div>
             )}
             {ocrNutrition && (
               <div className="ocr-extracted-box">
-                <span className="ocr-extracted-box-label">Scanned nutrition facts</span>
-                <div className="ocr-extracted-box-text">{ocrNutrition}</div>
+                <label className="ocr-extracted-box-label" htmlFor="ocrNutrition-review">Scanned nutrition facts: check and correct</label>
+                <textarea
+                  id="ocrNutrition-review"
+                  className="ocr-extracted-box-text"
+                  value={ocrNutrition}
+                  onChange={e => setOcrNutrition(e.target.value)}
+                  rows={4}
+                />
+                <span className="ocr-extracted-box-hint">Scanning can misread words. Compare with the package and fix anything wrong before saving.</span>
               </div>
             )}
             {buildContainsSummary(`${ocrIngredients} ${ocrNutrition}`) && (

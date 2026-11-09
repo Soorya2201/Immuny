@@ -1,4 +1,4 @@
-import { useState, useEffect, type ComponentType } from 'react';
+import { useState, useEffect } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 
@@ -28,6 +28,8 @@ import {
 } from './icons';
 import StatusMessage from './StatusMessage';
 import ExportDataSheet from './ExportDataSheet';
+import Section from './ProfileSection';
+import { DataUseSection, DeleteDataSection } from './PrivacyControls';
 import { COMMON_ALLERGENS } from '../utils/allergens';
 import PatientAvatar from './PatientAvatar';
 import { AQUATIC_AVATARS } from '../utils/avatars';
@@ -103,26 +105,6 @@ function formatDate(iso: string) {
     month: 'short', day: 'numeric', year: 'numeric',
     hour: '2-digit', minute: '2-digit',
   });
-}
-
-// ── Collapsible Section ──
-function Section({ title, icon: Icon, badge, defaultOpen = false, children }: {
-  title: string; icon: ComponentType; badge?: string | number;
-  defaultOpen?: boolean; children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <div className="profile-section">
-      <button onClick={() => setOpen(!open)} className="profile-section-header">
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}><Icon /> {title}</span>
-        <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          {badge !== undefined && <span className="profile-badge">{badge}</span>}
-          <span style={{ display: 'flex', transition: 'transform 0.2s', transform: open ? 'rotate(180deg)' : 'none' }}><ChevronDownIcon /></span>
-        </span>
-      </button>
-      {open && <div className="profile-section-body">{children}</div>}
-    </div>
-  );
 }
 
 // ── Toggle Switch ──
@@ -909,6 +891,13 @@ export default function ProfilePage() {
       <button className="save-btn" onClick={saveProfile} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, width: '100%', marginTop: 24, padding: 14, fontSize: 15 }}>
         <SaveIcon /> Save Profile & Preferences
       </button>
+
+      {/* ── Privacy: how data is used, and deleting it. Last, below Save, so
+          the destructive controls are never the first thing reached. ── */}
+      <div style={{ marginTop: 28 }}>
+        <DataUseSection />
+        <DeleteDataSection />
+      </div>
     </div>
   );
 }

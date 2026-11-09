@@ -2,10 +2,15 @@ import { useEffect, useState } from 'react';
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import { formatPostTime } from '../utils/formatTime';
+import { listAll } from '../utils/listAll';
 import { ChatBubbleIcon, CloseIcon, ExternalLinkIcon, ShareIcon, ThumbsUpIcon } from './icons';
 import StatusMessage from './StatusMessage';
 
 const client = generateClient<Schema>();
+
+// Amplify stores owner as "<sub>" or "<sub>::<username>".
+const ownedBy = (owner: string | null | undefined, userId: string) =>
+  typeof owner === 'string' && (owner === userId || owner.startsWith(`${userId}::`));
 
 type CommunityTab = 'social' | 'news';
 type PostMode = 'anonymous' | 'username';
@@ -256,17 +261,29 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
   const [newsLoaded, setNewsLoaded] = useState(false);
   const [newsError, setNewsError] = useState(false);
 
-  const isOwnedByMe = (owner: string | null | undefined) =>
-    typeof owner === 'string' && (owner === currentUserId || owner.startsWith(`${currentUserId}::`));
+  const isOwnedByMe = (owner: string | null | undefined) => ownedBy(owner, currentUserId);
 
   useEffect(() => {
     (async () => {
       try {
-        const [{ data }, { data: likeRows }] = await Promise.all([
+        const [{ data }, likeRows] = await Promise.all([
           client.models.CommunityPost.list(),
-          client.models.PostLike.list({ filter: { userId: { eq: currentUserId } } }),
+          listAll(nextToken => client.models.PostLike.list({ nextToken })),
         ]);
-        const likedIds = new Set((likeRows ?? []).map(l => l.postId));
+        // Like counts come from PostLike rows, not a counter on the post: only
+        // the author may edit a post, so nobody else can write a count there.
+        // Counted by the row's `owner`, which the server sets from the signed-in
+        // account, so one account adds at most one like however many rows it
+        // writes with made-up userIds.
+        const likers = new Map<string, Set<string>>();
+        const likedIds = new Set<string>();
+        for (const l of likeRows) {
+          const owner = (l as Record<string, unknown>).owner as string | null | undefined;
+          if (!owner) continue;
+          if (!likers.has(l.postId)) likers.set(l.postId, new Set());
+          likers.get(l.postId)!.add(owner);
+          if (ownedBy(owner, currentUserId)) likedIds.add(l.postId);
+        }
         if (data) {
           const mapped: Post[] = [...data]
             .sort((a, b) => new Date(b.createdAt ?? '').getTime() - new Date(a.createdAt ?? '').getTime())
@@ -278,9 +295,9 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
                 anonymous: p.anonymous ?? false,
                 title: p.title,
                 content: p.content,
-                likes: p.likes ?? 0,
+                likes: likers.get(p.id)?.size ?? 0,
                 createdAt: p.createdAt ?? new Date().toISOString(),
-                isOwner: isOwnedByMe(owner),
+                isOwner: ownedBy(owner, currentUserId),
                 likedByMe: likedIds.has(p.id),
               };
             });
@@ -341,7 +358,6 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
         anonymous: isAnon,
         title: postTitle.trim() || 'Untitled',
         content: postContent.trim(),
-        likes: 0,
       });
       if (created) {
         const newPost: Post = {
@@ -380,7 +396,6 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
       setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: newLikes, likedByMe: false } : p));
       try {
         await client.models.PostLike.delete({ postId: id, userId: currentUserId });
-        await client.models.CommunityPost.update({ id, likes: newLikes });
       } catch (e) {
         console.error('Failed to unlike post', e);
         setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: currentLikes, likedByMe: true } : p));
@@ -390,7 +405,6 @@ export default function CommunityPage({ currentUserId, currentUsername }: Commun
       setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: newLikes, likedByMe: true } : p));
       try {
         await client.models.PostLike.create({ postId: id, userId: currentUserId });
-        await client.models.CommunityPost.update({ id, likes: newLikes });
       } catch (e) {
         console.error('Failed to like post (already liked?)', e);
         setPosts(prev => prev.map(p => p.id === id ? { ...p, likes: currentLikes, likedByMe: true } : p));

@@ -1,5 +1,4 @@
 import { type ClientSchema, a, defineData } from '@aws-amplify/backend';
-import { askMedGemma } from '../functions/ask-medgemma/resource';
 import { askNovaMicro } from '../functions/ask-nova-micro/resource';
 import { logConversationEvent } from '../functions/log-conversation-event/resource';
 import { getConversationLogs } from '../functions/get-conversation-logs/resource';
@@ -153,10 +152,13 @@ const schema = a.schema({
     anonymous: a.boolean(),
     title: a.string().required(),
     content: a.string().required(),
+    // Legacy counter, no longer written: any user could edit the post to bump
+    // it. Likes are counted from PostLike rows instead.
     likes: a.integer(),
   }).authorization(allow => [
     allow.owner(),
-    allow.authenticated().to(['read', 'update']), // any auth user can like
+    // Read only: only the author may edit or delete a post.
+    allow.authenticated().to(['read']),
   ]),
 
   // ── Community post comments ──────────────────────────────────────────────
@@ -191,13 +193,6 @@ const schema = a.schema({
     allow.authenticated().to(['read']),
   ]),
 
-  // ── MedGemma (detailed medical — Colab/Ngrok) ────────────────────────────
-  askMedGemma: a.query()
-    .arguments({ question: a.string() })
-    .returns(a.string())
-    .authorization((allow) => [allow.authenticated()])
-    .handler(a.handler.function(askMedGemma)),
-
   // ── Nova Micro (fast casual — AWS Bedrock) ───────────────────────────────
   // history: JSON string of last N turns [{ role, content }]
   // context: compact session summary (allergies, current topic, symptoms)
@@ -213,6 +208,8 @@ const schema = a.schema({
 
   // ── Conversation event logger (DynamoDB) ─────────────────────────────────
   logConversationEvent: a.query()
+    // userId is ignored: the handler uses the signed-in account. It stays in
+    // the signature so app versions still open in a browser keep working.
     .arguments({ userId: a.string(), event: a.string() })
     .returns(a.boolean())
     .authorization((allow) => [allow.authenticated()])

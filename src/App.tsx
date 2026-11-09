@@ -1275,8 +1275,29 @@ function AppShell({ userId, userEmail }: AppShellProps) {
   );
 }
 
+// iOS can scroll a page sideways while zoomed on a focused field, and an
+// overflow-x:hidden scroller keeps that offset. Such a box is never meant to
+// scroll sideways, so any horizontal offset on one is undone at once. Strips
+// built to scroll sideways (overflow-x: auto) are left alone.
+function useNoSidewaysDrift() {
+  useEffect(() => {
+    const reset = (e: Event) => {
+      const el = e.target;
+      if (el instanceof HTMLElement && el.scrollLeft !== 0 && getComputedStyle(el).overflowX === 'hidden') {
+        el.scrollLeft = 0;
+      }
+    };
+    document.addEventListener('scroll', reset, true);
+    return () => document.removeEventListener('scroll', reset, true);
+  }, []);
+}
+
 export default function App() {
+  useNoSidewaysDrift();
   return (
+    <>
+    {/* Shown on every screen, login included. Decorative: it never takes taps. */}
+    <div className="beta-badge" role="note">Beta test · features may change</div>
     <Authenticator components={authComponents} formFields={authFormFields}>
       {({ user }) => {
         const userId = user?.userId ?? 'anonymous';
@@ -1288,5 +1309,6 @@ export default function App() {
         );
       }}
     </Authenticator>
+    </>
   );
 }

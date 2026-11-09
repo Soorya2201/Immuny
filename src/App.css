@@ -6161,12 +6161,42 @@ body {
 }
 
 .ocr-extracted-box-text {
+  /* An editable textarea: scanned text is a draft the user corrects before
+     it is saved, never taken as-is. */
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
   font-size: 12px;
   color: #3b4a54;
   line-height: 1.4;
   white-space: pre-wrap;
-  max-height: 100px;
+  min-height: 72px;
+  max-height: 160px;
+  resize: vertical;
   overflow-y: auto;
+  padding: 8px 10px;
+  background: #fff;
+  border: 1px solid #d5e3ee;
+  border-radius: 8px;
+}
+
+.ocr-extracted-box-text:focus {
+  outline: 2px solid #1e5f9e;
+  outline-offset: 1px;
+}
+
+.ocr-extracted-box-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 11px;
+  color: #64748b;
+  line-height: 1.35;
+}
+
+@media (hover: none) and (pointer: coarse) {
+  /* Below 16px iOS zooms the page when the field is focused. */
+  .ocr-extracted-box-text { font-size: 16px; }
 }
 
 .ocr-contains-summary {
@@ -6178,4 +6208,132 @@ body {
   border-radius: 8px;
   padding: 8px 12px;
   margin-bottom: 12px;
+}
+
+/* ── Beta notice ──
+   A small pill pinned to the top of every screen (login included). It ignores
+   taps so it never blocks the header beneath it, and clears the notch. */
+.beta-badge {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 3000;
+  pointer-events: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(11, 63, 107, 0.72);
+  color: #fff;
+  font-size: 9px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  line-height: 1.4;
+  white-space: nowrap;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* ── Privacy: how data is used, delete data / account ── */
+.privacy-copy { font-size: 13px; line-height: 1.5; color: #3b4a54; }
+.privacy-copy h4 { margin: 14px 0 4px; font-size: 13px; color: #111b21; }
+.privacy-copy h4:first-child { margin-top: 0; }
+.privacy-copy p { margin: 0; }
+.privacy-copy ul { margin: 0; padding-left: 18px; }
+.privacy-copy li { margin-bottom: 4px; }
+.privacy-note { margin-top: 14px !important; font-size: 12px; color: #667781; }
+
+.privacy-danger-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  border-bottom: 1px solid #f0f2f5;
+}
+.privacy-danger-row:last-child { border-bottom: none; }
+.privacy-danger-row > div { flex: 1; min-width: 0; }
+.privacy-danger-row strong { font-size: 14px; color: #111b21; }
+.privacy-danger-row p { margin: 2px 0 0; font-size: 12px; line-height: 1.4; color: #667781; }
+
+.danger-btn,
+.danger-btn-outline,
+.danger-btn-ghost {
+  flex-shrink: 0;
+  min-height: 40px;
+  padding: 0 14px;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.danger-btn { background: #b91c1c; color: #fff; border: 1px solid #b91c1c; }
+.danger-btn:hover:not(:disabled) { background: #991b1b; }
+.danger-btn:disabled { background: #f1c9c9; border-color: #f1c9c9; color: #fff; cursor: not-allowed; }
+.danger-btn-outline { background: #fff; color: #b91c1c; border: 1px solid #e8a3a3; }
+.danger-btn-outline:hover { background: #fef2f2; }
+.danger-btn-ghost { background: #fff; color: #3b4a54; border: 1px solid #d5e3ee; }
+.danger-btn:focus-visible,
+.danger-btn-outline:focus-visible,
+.danger-btn-ghost:focus-visible { outline: 2px solid #1e5f9e; outline-offset: 2px; }
+
+.danger-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 2500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.5);
+}
+.danger-modal {
+  width: 100%;
+  max-width: 380px;
+  max-height: calc(100dvh - 32px);
+  overflow-y: auto;
+  padding: 20px;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+  font-size: 14px;
+  line-height: 1.5;
+  color: #3b4a54;
+}
+.danger-modal h3 { margin: 0 0 8px; font-size: 18px; color: #111b21; }
+.danger-modal p { margin: 0 0 8px; }
+.danger-modal ul { margin: 0 0 10px; padding-left: 18px; }
+.danger-modal-warn { color: #b91c1c; font-weight: 600; font-size: 13px; }
+.danger-modal label { display: block; margin-bottom: 6px; }
+.danger-modal-input {
+  width: 100%;
+  box-sizing: border-box;
+  height: 42px;
+  padding: 0 12px;
+  border: 1px solid #d5e3ee;
+  border-radius: 10px;
+  font: inherit;
+  font-size: 16px; /* 16px keeps iOS from zooming on focus */
+  letter-spacing: 0.05em;
+}
+.danger-modal-input:focus { outline: 2px solid #b91c1c; outline-offset: 1px; }
+.danger-modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 14px; }
+
+/* ── iOS: no zoom on focus, no sideways drift ──
+   iOS zooms in when a field with text under 16px gets focus, and while zoomed
+   it scrolls the overflow:hidden wrappers sideways to keep the caret visible.
+   They stay shifted after the zoom ends, so the page sits cut off on the left
+   and runs past the right edge (seen on the Health Logger). 16px stops the
+   zoom; `overflow: clip` makes the wrappers impossible to scroll at all, which
+   `hidden` does not. The page's own scroller is reset in App.tsx. */
+@media (hover: none) and (pointer: coarse) {
+  input:not([type='checkbox']):not([type='radio']):not([type='range']),
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+}
+
+.app-container,
+.main-content,
+.page-fade {
+  overflow: clip;
 }

@@ -1,7 +1,6 @@
 import { defineBackend } from '@aws-amplify/backend';
 import { auth } from './auth/resource';
 import { data } from './data/resource';
-import { askMedGemma } from './functions/ask-medgemma/resource';
 import { askNovaMicro } from './functions/ask-nova-micro/resource';
 import { logConversationEvent } from './functions/log-conversation-event/resource';
 import { getConversationLogs } from './functions/get-conversation-logs/resource';
@@ -17,22 +16,12 @@ import { AwsCustomResource, AwsCustomResourcePolicy, PhysicalResourceId } from '
 const backend = defineBackend({
   auth,
   data,
-  askMedGemma,
   askNovaMicro,
   logConversationEvent,
   getConversationLogs,
   fetchAllergyNews,
   extractLabelText,
 });
-
-// ── MedGemma: allow SageMaker invocations (existing) ───────────────────────
-backend.askMedGemma.resources.lambda.addToRolePolicy(
-  new PolicyStatement({
-    effect: Effect.ALLOW,
-    actions: ['sagemaker:InvokeEndpoint'],
-    resources: ['*'],
-  }),
-);
 
 // ── Nova Micro: allow Bedrock InvokeModel ────────────────────────────────────
 backend.askNovaMicro.resources.lambda.addToRolePolicy(

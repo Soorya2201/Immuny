@@ -7,7 +7,10 @@ const TABLE_NAME = process.env.TABLE_NAME ?? "";
 export const handler: Schema["logConversationEvent"]["functionHandler"] =
     async (event) => {
         try {
-            const { userId, event: eventJson } = event.arguments;
+            const { event: eventJson } = event.arguments;
+            // The caller's own account, never the userId argument: trusting the
+            // argument let any signed-in user write into anyone else's logs.
+            const userId = (event.identity as { sub?: string } | null)?.sub;
             if (!userId || !eventJson) return false;
 
             const parsed = JSON.parse(eventJson) as { type: string; ts?: string };

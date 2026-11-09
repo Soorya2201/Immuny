@@ -485,14 +485,28 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
             />
             {expOcrIngredients && (
               <div className="ocr-extracted-box">
-                <span className="ocr-extracted-box-label">Scanned ingredients</span>
-                <div className="ocr-extracted-box-text">{expOcrIngredients}</div>
+                <label className="ocr-extracted-box-label" htmlFor="expOcrIngredients-review">Scanned ingredients: check and correct</label>
+                <textarea
+                  id="expOcrIngredients-review"
+                  className="ocr-extracted-box-text"
+                  value={expOcrIngredients}
+                  onChange={e => setExpOcrIngredients(e.target.value)}
+                  rows={4}
+                />
+                <span className="ocr-extracted-box-hint">Scanning can misread words. Compare with the package and fix anything wrong before saving.</span>
               </div>
             )}
             {expOcrNutrition && (
               <div className="ocr-extracted-box">
-                <span className="ocr-extracted-box-label">Scanned nutrition facts</span>
-                <div className="ocr-extracted-box-text">{expOcrNutrition}</div>
+                <label className="ocr-extracted-box-label" htmlFor="expOcrNutrition-review">Scanned nutrition facts: check and correct</label>
+                <textarea
+                  id="expOcrNutrition-review"
+                  className="ocr-extracted-box-text"
+                  value={expOcrNutrition}
+                  onChange={e => setExpOcrNutrition(e.target.value)}
+                  rows={4}
+                />
+                <span className="ocr-extracted-box-hint">Scanning can misread words. Compare with the package and fix anything wrong before saving.</span>
               </div>
             )}
             {buildContainsSummary(`${expOcrIngredients} ${expOcrNutrition}`) && (
