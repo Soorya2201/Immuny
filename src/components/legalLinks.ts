@@ -9,10 +9,6 @@ export const PRIVACY_URL =
 // account as the version that person agreed to.
 export const LEGAL_VERSION = 'terms-2026-11-08+privacy-2026-11-08';
 
-// Beta Testing Guidelines: no published document yet. Leave empty until there
-// is one; the agreement screen then shows "Coming soon" instead of a link.
-export const BETA_GUIDELINES_URL = '';
-
 // Version of the Privacy & Safety Agreement screen shown after sign-up. Bump it
 // when the wording changes and every user sees the screen again once.
 export const AGREEMENT_VERSION = 'beta-agreement-2026-11-09';

@@ -11,7 +11,7 @@ import {
   SparkleIcon,
   UsersIcon,
 } from './icons';
-import { AGREEMENT_VERSION, BETA_GUIDELINES_URL, PRIVACY_URL, TERMS_URL } from './legalLinks';
+import { AGREEMENT_VERSION, PRIVACY_URL, TERMS_URL } from './legalLinks';
 import '../agreement.css';
 
 const client = generateClient<Schema>();
@@ -91,7 +91,6 @@ const NOTICES: Notice[] = [
 const DOCUMENTS = [
   { label: 'Privacy Policy', url: PRIVACY_URL },
   { label: 'Terms of Service', url: TERMS_URL },
-  { label: 'Beta Testing Guidelines', url: BETA_GUIDELINES_URL },
 ];
 
 const AGREEMENTS = [
@@ -162,19 +161,12 @@ export default function AgreementPage({ existingProfileId, onAccepted }: Agreeme
 
         <h2 className="agree-section-title">Review Our Documents</h2>
         <div className="agree-panel agree-docs">
-          {DOCUMENTS.map(({ label, url }) =>
-            url ? (
-              <a key={label} className="agree-doc" href={url} target="_blank" rel="noopener noreferrer">
-                <span>{label}</span>
-                <ExternalLinkIcon />
-              </a>
-            ) : (
-              <div key={label} className="agree-doc agree-doc--pending">
-                <span>{label}</span>
-                <em>Coming soon</em>
-              </div>
-            ),
-          )}
+          {DOCUMENTS.map(({ label, url }) => (
+            <a key={label} className="agree-doc" href={url} target="_blank" rel="noopener noreferrer">
+              <span>{label}</span>
+              <ExternalLinkIcon />
+            </a>
+          ))}
         </div>
 
         <h2 className="agree-section-title">Your Agreement</h2>
