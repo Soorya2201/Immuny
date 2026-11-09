@@ -41,3 +41,6 @@ immuny-allergy-visit-summary-*.pdf
 *.njsproj
 *.sln
 *.sw?
+
+# Cost exports from scripts/ai-usage.mjs hold user emails; never commit them.
+/*.csv
