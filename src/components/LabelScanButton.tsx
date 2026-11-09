@@ -1,18 +1,21 @@
 import { useRef, useState } from 'react';
-import { extractTextFromFiles } from '../utils/ocr';
+import { scanLabelFiles } from '../utils/ocr';
+import { reviewTextFor, summaryReviewText, type LabelScan, type ScanKind } from '../utils/labelScan';
 import { CameraIcon } from './icons';
 
 interface LabelScanButtonProps {
   label: string;
+  kind: ScanKind;
   multiple?: boolean;
-  onExtracted: (text: string) => void;
+  /** text: what goes in this button's review box; summary: the AI label summary. */
+  onExtracted: (text: string, summary: string, scan: LabelScan) => void;
 }
 
-// Reusable "scan a package photo and OCR it" control — used for both the
-// ingredients list (usually several photos for a multi-panel package) and
-// the nutrition facts panel (one photo) across the Health Logger and Food
-// Tracker pages.
-export default function LabelScanButton({ label, multiple, onExtracted }: LabelScanButtonProps) {
+// Reusable "scan a package photo" control. Amazon Nova Lite reads the label
+// and returns the ingredients, allergens, nutrition and a summary, which the
+// user checks before saving. Used for both the ingredients list (often several
+// photos) and the nutrition facts panel, on the Health Logger and Food Tracker.
+export default function LabelScanButton({ label, kind, multiple, onExtracted }: LabelScanButtonProps) {
   const [scanning, setScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -24,11 +27,12 @@ export default function LabelScanButton({ label, multiple, onExtracted }: LabelS
     setScanning(true);
     setError(null);
     try {
-      const text = await extractTextFromFiles(files);
-      if (!text) {
-        setError("Couldn't read any text from that photo — try a clearer, well-lit shot.");
+      const scan = await scanLabelFiles(files);
+      const text = scan ? reviewTextFor(kind, scan) : '';
+      if (!scan || !text) {
+        setError("Couldn't read that label. Try a clearer, well-lit photo of the label.");
       } else {
-        onExtracted(text);
+        onExtracted(text, summaryReviewText(scan), scan);
       }
     } catch (err) {
       console.error('Label scan failed:', err);

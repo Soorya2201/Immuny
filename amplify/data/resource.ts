@@ -4,6 +4,7 @@ import { logConversationEvent } from '../functions/log-conversation-event/resour
 import { getConversationLogs } from '../functions/get-conversation-logs/resource';
 import { fetchAllergyNews } from '../functions/fetch-allergy-news/resource';
 import { extractLabelText } from '../functions/extract-label-text/resource';
+import { scanFoodLabel } from '../functions/scan-food-label/resource';
 
 const schema = a.schema({
   // ── User profile ────────────────────────────────────────────────────────────
@@ -42,6 +43,7 @@ const schema = a.schema({
     quantityUnit: a.string(),          // 'grams' | 'oz' | 'ml' | 'pieces' | 'cups' | ...
     ocrIngredients: a.string(),        // raw text extracted from ingredients-label photo(s)
     ocrNutrition: a.string(),          // raw text extracted from nutrition-facts photo
+    labelSummary: a.string(),          // AI summary of the scanned label (Nova Lite), checked by the user
     containsSummary: a.string(),       // "This food contains: peanuts, milk" derived from OCR text
     followUpAt: a.string(),            // ISO datetime Bea should check back in; null = no check-in
     followUpStatus: a.string(),        // 'pending' | 'ongoing' | 'resolved'
@@ -231,6 +233,15 @@ const schema = a.schema({
     .returns(a.string())
     .authorization((allow) => [allow.authenticated()])
     .handler(a.handler.function(extractLabelText)),
+
+  // ── Food label scan (Amazon Nova Lite reads the photo; Textract fallback) ──
+  // images: JSON string array of base64 JPEG bytes. Returns a JSON LabelScan
+  // (amplify/functions/scan-food-label/handler.ts).
+  scanFoodLabel: a.query()
+    .arguments({ images: a.string().required() })
+    .returns(a.string())
+    .authorization((allow) => [allow.authenticated()])
+    .handler(a.handler.function(scanFoodLabel)),
 }).authorization(allow => [
   // Grants fetchAllergyNews IAM access to the Data API (used to write/prune NewsArticle rows).
   allow.resource(fetchAllergyNews),

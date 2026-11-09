@@ -7,6 +7,7 @@ import { COMMON_ALLERGENS } from '../utils/allergens';
 import { useActivePatient } from '../contexts/useActivePatient';
 import PatientSwitcher from './PatientSwitcher';
 import { buildContainsSummary, detectAllergensInText } from '../utils/ocr';
+import { appendScan } from '../utils/labelScan';
 import {
   CameraIcon,
   CheckCircleIcon,
@@ -70,6 +71,7 @@ export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
   const [quantityUnit, setQuantityUnit] = useState('grams');
   const [ocrIngredients, setOcrIngredients] = useState('');
   const [ocrNutrition, setOcrNutrition] = useState('');
+  const [labelSummary, setLabelSummary] = useState('');
   const [completion, setCompletion] = useState(50);
   const [timeOfDay, setTimeOfDay] = useState<(typeof TIME_OPTIONS)[number]>('Morning');
   const [customTime, setCustomTime] = useState('');
@@ -146,6 +148,7 @@ export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
         ocrIngredients: ocrIngredients || undefined,
         ocrNutrition: ocrNutrition || undefined,
         containsSummary: buildContainsSummary(`${ocrIngredients} ${ocrNutrition}`) || undefined,
+        labelSummary: labelSummary.trim() || undefined,
       });
 
       setSavedMsg({ type: 'success', text: 'Food logged!' });
@@ -234,9 +237,11 @@ export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
             <label>Scan the package (optional)</label>
             <LabelScanButton
               label="Scan Ingredients List (multiple photos OK)"
+              kind="ingredients"
               multiple
-              onExtracted={text => {
-                setOcrIngredients(prev => prev ? `${prev}\n---\n${text}` : text);
+              onExtracted={(text, summary) => {
+                setOcrIngredients(prev => appendScan(prev, text));
+                setLabelSummary(prev => appendScan(prev, summary));
                 const detected = detectAllergensInText(text);
                 if (detected.length > 0) {
                   setTags(prev => [...new Set([...prev, ...detected])]);
@@ -245,8 +250,25 @@ export default function FoodTrackerPage({ onNavigate }: FoodTrackerPageProps) {
             />
             <LabelScanButton
               label="Scan Nutrition Facts"
-              onExtracted={text => setOcrNutrition(prev => prev ? `${prev}\n---\n${text}` : text)}
+              kind="nutrition"
+              onExtracted={(text, summary) => {
+                setOcrNutrition(prev => appendScan(prev, text));
+                setLabelSummary(prev => appendScan(prev, summary));
+              }}
             />
+            {labelSummary && (
+              <div className="ocr-extracted-box">
+                <label className="ocr-extracted-box-label" htmlFor="labelSummary-review">Label summary: check and correct</label>
+                <textarea
+                  id="labelSummary-review"
+                  className="ocr-extracted-box-text"
+                  value={labelSummary}
+                  onChange={e => setLabelSummary(e.target.value)}
+                  rows={3}
+                />
+                <span className="ocr-extracted-box-hint">Written by AI from the photo. It can make mistakes, so check it against the package.</span>
+              </div>
+            )}
             {ocrIngredients && (
               <div className="ocr-extracted-box">
                 <label className="ocr-extracted-box-label" htmlFor="ocrIngredients-review">Scanned ingredients: check and correct</label>

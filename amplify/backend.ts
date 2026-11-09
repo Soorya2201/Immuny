@@ -6,6 +6,7 @@ import { logConversationEvent } from './functions/log-conversation-event/resourc
 import { getConversationLogs } from './functions/get-conversation-logs/resource';
 import { fetchAllergyNews } from './functions/fetch-allergy-news/resource';
 import { extractLabelText } from './functions/extract-label-text/resource';
+import { scanFoodLabel } from './functions/scan-food-label/resource';
 import { PolicyStatement, Effect } from 'aws-cdk-lib/aws-iam';
 import { CfnOutput, Duration, RemovalPolicy } from 'aws-cdk-lib';
 import { AttributeType, BillingMode, Table } from 'aws-cdk-lib/aws-dynamodb';
@@ -21,6 +22,7 @@ const backend = defineBackend({
   getConversationLogs,
   fetchAllergyNews,
   extractLabelText,
+  scanFoodLabel,
 });
 
 // ── Nova Micro: allow Bedrock InvokeModel ────────────────────────────────────
@@ -32,8 +34,10 @@ backend.askNovaMicro.resources.lambda.addToRolePolicy(
   }),
 );
 
-// ── AI usage & cost table (backend only) ──────────────────────────────────────
-// One row per Nova Micro call: tokens, the prices charged and the cost in USD.
+// ── Usage & cost table (backend only) ─────────────────────────────────────────
+// One row per paid call (Nova Micro chat, Nova Lite and Textract label scans): what
+// was used, the prices charged, the provider cost and the Lambda compute cost
+// in USD. See amplify/functions/shared/usage.ts.
 // It is deliberately not an Amplify data model, so it has no GraphQL API and
 // the app cannot read or write it; only the Nova function can write, and it is
 // read with PartiQL from the console or scripts/ai-usage.mjs.
@@ -53,8 +57,10 @@ aiUsageTable.addGlobalSecondaryIndex({
   partitionKey: { name: 'day', type: AttributeType.STRING },
   sortKey: { name: 'createdAt', type: AttributeType.STRING },
 });
-aiUsageTable.grantWriteData(backend.askNovaMicro.resources.lambda);
-backend.askNovaMicro.addEnvironment('AI_USAGE_TABLE', aiUsageTable.tableName);
+for (const fn of [backend.askNovaMicro, backend.extractLabelText, backend.scanFoodLabel]) {
+  aiUsageTable.grantWriteData(fn.resources.lambda);
+  fn.addEnvironment('AI_USAGE_TABLE', aiUsageTable.tableName);
+}
 new CfnOutput(novaStack, 'AiUsageTableName', { value: aiUsageTable.tableName });
 backend.addOutput({ custom: { aiUsageTable: aiUsageTable.tableName } });
 
@@ -78,6 +84,22 @@ backend.getConversationLogs.resources.lambda.addToRolePolicy(
 
 // ── OCR: allow Textract document text detection ──────────────────────────────
 backend.extractLabelText.resources.lambda.addToRolePolicy(
+  new PolicyStatement({
+    effect: Effect.ALLOW,
+    actions: ['textract:DetectDocumentText'],
+    resources: ['*'],
+  }),
+);
+
+// ── Label scan: Nova Lite reads the photo, Textract is the fallback ──────────
+backend.scanFoodLabel.resources.lambda.addToRolePolicy(
+  new PolicyStatement({
+    effect: Effect.ALLOW,
+    actions: ['bedrock:InvokeModel'],
+    resources: ['arn:aws:bedrock:*::foundation-model/amazon.nova-lite-v1:0'],
+  }),
+);
+backend.scanFoodLabel.resources.lambda.addToRolePolicy(
   new PolicyStatement({
     effect: Effect.ALLOW,
     actions: ['textract:DetectDocumentText'],

@@ -20,6 +20,7 @@ import type { Page } from '../types';
 import { toLocalDatetimeInputValue } from '../utils/formatTime';
 import { COMMON_ALLERGENS } from '../utils/allergens';
 import { buildContainsSummary, detectAllergensInText } from '../utils/ocr';
+import { appendScan } from '../utils/labelScan';
 import { useActivePatient } from '../contexts/useActivePatient';
 import { listAll } from '../utils/listAll';
 import PatientSwitcher from './PatientSwitcher';
@@ -69,6 +70,7 @@ interface HealthEntry {
   ocrIngredients?: string | null;
   ocrNutrition?: string | null;
   containsSummary?: string | null;
+  labelSummary?: string | null;
 }
 
 const SYMPTOM_LIST = ['Hives', 'Swelling', 'Itching', 'Nausea', 'Vomiting', 'Stomach Pain', 'Difficulty Breathing', 'Dizziness', 'Fatigue', 'Headache', 'Rash', 'Other'];
@@ -172,10 +174,16 @@ function EntryCard({ entry, onDelete, onEdit }: { entry: HealthEntry; onDelete: 
       {entry.containsSummary && (
         <div className="ocr-contains-summary" style={{ marginTop: 8, marginBottom: 0 }}>{entry.containsSummary}</div>
       )}
-      {!editing && (entry.notes || entry.details || entry.reason || entry.bodyArea || entry.ocrIngredients || entry.ocrNutrition) && (
+      {!editing && (entry.notes || entry.details || entry.reason || entry.bodyArea || entry.ocrIngredients || entry.ocrNutrition || entry.labelSummary) && (
         <div style={{ marginTop: 8, padding: 10, background: '#F0F2F5', borderRadius: 6, fontSize: 13, color: '#3B4A54', borderTop: '1px solid #E9EDEF' }}>
           {entry.bodyArea && <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}><MapPinIcon /> {entry.bodyArea}</div>}
           {entry.notes || entry.details || entry.reason}
+          {entry.labelSummary && (
+            <div style={{ marginTop: 6 }}>
+              <strong>Label summary:</strong>
+              <div style={{ whiteSpace: 'pre-wrap', fontSize: 12 }}>{entry.labelSummary}</div>
+            </div>
+          )}
           {entry.ocrIngredients && (
             <div style={{ marginTop: 6 }}>
               <strong>Scanned ingredients:</strong>
@@ -229,6 +237,7 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
   const [expQuantityUnit, setExpQuantityUnit] = useState('grams');
   const [expOcrIngredients, setExpOcrIngredients] = useState('');
   const [expOcrNutrition, setExpOcrNutrition] = useState('');
+  const [expLabelSummary, setExpLabelSummary] = useState('');
 
   const [symName, setSymName] = useState('');
   const [symCustom, setSymCustom] = useState('');
@@ -277,6 +286,7 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
             ocrIngredients: d.ocrIngredients ?? undefined,
             ocrNutrition: d.ocrNutrition ?? undefined,
             containsSummary: d.containsSummary ?? undefined,
+            labelSummary: d.labelSummary ?? undefined,
             time: d.time,
           }));
           setEntries(mapped);
@@ -323,6 +333,7 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
         ocrIngredients: entry.ocrIngredients ?? undefined,
         ocrNutrition: entry.ocrNutrition ?? undefined,
         containsSummary: entry.containsSummary ?? undefined,
+        labelSummary: entry.labelSummary ?? undefined,
       });
       // Amplify reports a rejected write as an errors array rather than a
       // throw, so an unchecked call reported "Saved!" over a row that was
@@ -469,9 +480,11 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
             <label>Scan the package (optional)</label>
             <LabelScanButton
               label="Scan Ingredients List (multiple photos OK)"
+              kind="ingredients"
               multiple
-              onExtracted={text => {
-                setExpOcrIngredients(prev => prev ? `${prev}\n---\n${text}` : text);
+              onExtracted={(text, summary) => {
+                setExpOcrIngredients(prev => appendScan(prev, text));
+                setExpLabelSummary(prev => appendScan(prev, summary));
                 const detected = detectAllergensInText(text);
                 if (detected.length > 0) {
                   const current = expTags.split(',').map(t => t.trim()).filter(Boolean);
@@ -481,8 +494,25 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
             />
             <LabelScanButton
               label="Scan Nutrition Facts"
-              onExtracted={text => setExpOcrNutrition(prev => prev ? `${prev}\n---\n${text}` : text)}
+              kind="nutrition"
+              onExtracted={(text, summary) => {
+                setExpOcrNutrition(prev => appendScan(prev, text));
+                setExpLabelSummary(prev => appendScan(prev, summary));
+              }}
             />
+            {expLabelSummary && (
+              <div className="ocr-extracted-box">
+                <label className="ocr-extracted-box-label" htmlFor="expLabelSummary-review">Label summary: check and correct</label>
+                <textarea
+                  id="expLabelSummary-review"
+                  className="ocr-extracted-box-text"
+                  value={expLabelSummary}
+                  onChange={e => setExpLabelSummary(e.target.value)}
+                  rows={3}
+                />
+                <span className="ocr-extracted-box-hint">Written by AI from the photo. It can make mistakes, so check it against the package.</span>
+              </div>
+            )}
             {expOcrIngredients && (
               <div className="ocr-extracted-box">
                 <label className="ocr-extracted-box-label" htmlFor="expOcrIngredients-review">Scanned ingredients: check and correct</label>
@@ -530,9 +560,10 @@ export default function SymptomLoggerPage({ initialTab, onNavigate }: SymptomLog
               ocrIngredients: expOcrIngredients || undefined,
               ocrNutrition: expOcrNutrition || undefined,
               containsSummary: buildContainsSummary(`${expOcrIngredients} ${expOcrNutrition}`) || undefined,
+              labelSummary: expLabelSummary.trim() || undefined,
             });
             if (!ok) return;
-            setExpName(''); setExpTags(''); setExpDetails(''); setExpQuantity(''); setExpOcrIngredients(''); setExpOcrNutrition('');
+            setExpName(''); setExpTags(''); setExpDetails(''); setExpQuantity(''); setExpOcrIngredients(''); setExpOcrNutrition(''); setExpLabelSummary('');
           }} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6 }}><CheckCircleIcon /> {saving ? 'Saving…' : expType === 'Meal' ? 'Log Food' : 'Log Exposure'}</button>
         </div>
       )}

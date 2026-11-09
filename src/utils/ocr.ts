@@ -1,6 +1,7 @@
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
 import { matchAllergensInText } from './allergens';
+import type { LabelScan } from './labelScan';
 
 const client = generateClient<Schema>();
 
@@ -40,6 +41,16 @@ export async function extractTextFromFiles(files: File[]): Promise<string> {
   const images = await Promise.all(files.map(fileToCompressedBase64));
   const result = await client.queries.extractLabelText({ images: JSON.stringify(images) });
   return String(result.data ?? '').trim();
+}
+
+// Reads a food label with Amazon Nova Lite (scanFoodLabel); the backend falls
+// back to Textract plain text if Nova Lite fails. Null when nothing was read.
+export async function scanLabelFiles(files: File[]): Promise<LabelScan | null> {
+  const images = await Promise.all(files.map(fileToCompressedBase64));
+  const { data, errors } = await client.queries.scanFoodLabel({ images: JSON.stringify(images) });
+  if (errors?.length) throw new Error(errors[0].message);
+  const scan = data ? (JSON.parse(data) as LabelScan | null) : null;
+  return scan && scan.readable ? scan : null;
 }
 
 // Cross-references OCR'd ingredients/nutrition text against the shared

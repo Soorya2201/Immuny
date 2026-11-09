@@ -3,7 +3,9 @@ import {
     InvokeModelCommand,
 } from "@aws-sdk/client-bedrock-runtime";
 import type { Schema } from "../../data/resource";
-import { NOVA_MICRO, recordNovaUsage } from "./usage";
+import { PRICES, novaMicroCostUsd, recordUsage } from "../shared/usage";
+
+const NOVA_MICRO = PRICES.novaMicro;
 
 const bedrock = new BedrockRuntimeClient({ region: "us-east-1" });
 
@@ -98,6 +100,7 @@ Rules:
 export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
     event
 ) => {
+    const handlerStartedAt = Date.now();
     try {
         const { question, history, context, mode } = event.arguments;
         if (!question) return "Hey! Ask me anything about your allergies or health.";
@@ -179,12 +182,23 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
         // caller is identified from the Cognito token on the request, not from
         // anything the client sends.
         const identity = event.identity as { sub?: string } | null | undefined;
-        await recordNovaUsage({
+        const inputTokens = raw.usage?.inputTokens ?? 0;
+        const outputTokens = raw.usage?.outputTokens ?? 0;
+        await recordUsage({
             userId: identity?.sub ?? "unknown",
+            provider: "bedrock",
+            model: NOVA_MICRO.modelId,
             mode: extracting ? "extract" : phrasing ? "phrase" : "chat",
-            inputTokens: raw.usage?.inputTokens ?? 0,
-            outputTokens: raw.usage?.outputTokens ?? 0,
-            latencyMs,
+            costUsd: novaMicroCostUsd(inputTokens, outputTokens),
+            handlerStartedAt,
+            metrics: {
+                inputTokens,
+                outputTokens,
+                totalTokens: inputTokens + outputTokens,
+                inputUsdPer1M: NOVA_MICRO.inputUsdPer1M,
+                outputUsdPer1M: NOVA_MICRO.outputUsdPer1M,
+                latencyMs,
+            },
         });
         const fallback = extracting
             ? "{}"
