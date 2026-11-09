@@ -19,6 +19,8 @@ const schema = a.schema({
     onboardingComplete: a.boolean(),
     pronouns: a.string(),            // 'she/her' | 'he/him' | 'they/them' | free text
     avatarKey: a.string(),           // aquatic avatar id, e.g. 'octopus'
+    agreementAcceptedAt: a.string(), // ISO time the user ticked all four boxes on the Privacy & Safety Agreement
+    agreementVersion: a.string(),    // AGREEMENT_VERSION they accepted (src/components/legalLinks.ts)
   }).authorization(allow => [allow.owner()]),
 
   // ── Health entries (Symptom Logger) ────────────────────────────────────────

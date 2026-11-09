@@ -16,6 +16,8 @@ import MedicationsPage from './components/MedicationsPage';
 import FoodTrackerPage from './components/FoodTrackerPage';
 import HomePage from './components/HomePage';
 import OnboardingPage from './components/OnboardingPage';
+import AgreementPage from './components/AgreementPage';
+import { AGREEMENT_VERSION } from './components/legalLinks';
 import InsightsPage from './components/InsightsPage';
 import VoicePage from './components/VoicePage';
 import CommunityPage from './components/CommunityPage';
@@ -398,6 +400,9 @@ function AppShell({ userId, userEmail }: AppShellProps) {
 
   // ── Onboarding gate — new/incomplete profiles see the setup wizard first ──
   const [onboardingStatus, setOnboardingStatus] = useState<'checking' | 'needed' | 'done'>('checking');
+  // Privacy & Safety Agreement: shown before onboarding to new users, and to
+  // anyone who has not accepted the current AGREEMENT_VERSION.
+  const [agreementNeeded, setAgreementNeeded] = useState(false);
   const [existingProfileId, setExistingProfileId] = useState<string | null>(null);
 
   // Other components (e.g. ProfilePage) read the signed-in user id off the DOM
@@ -484,8 +489,10 @@ function AppShell({ userId, userEmail }: AppShellProps) {
         const profile = data?.[0];
         if (profile) {
           setExistingProfileId(profile.id);
+          setAgreementNeeded(profile.agreementVersion !== AGREEMENT_VERSION);
           setOnboardingStatus(profile.onboardingComplete ? 'done' : 'needed');
         } else {
+          setAgreementNeeded(true);
           setOnboardingStatus('needed');
         }
       } catch (e) {
@@ -1251,6 +1258,20 @@ function AppShell({ userId, userEmail }: AppShellProps) {
         <div className="onboarding-loading">
           <img src={beaImg} alt="Bea" className="onboarding-loading-bea" />
         </div>
+      </div>
+    );
+  }
+
+  if (agreementNeeded) {
+    return (
+      <div className="app-container">
+        <AgreementPage
+          existingProfileId={existingProfileId}
+          onAccepted={profileId => {
+            setExistingProfileId(profileId);
+            setAgreementNeeded(false);
+          }}
+        />
       </div>
     );
   }
