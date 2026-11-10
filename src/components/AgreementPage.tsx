@@ -11,7 +11,7 @@ import {
   SparkleIcon,
   UsersIcon,
 } from './icons';
-import { AGREEMENT_VERSION, PRIVACY_URL, TERMS_URL } from './legalLinks';
+import { AGREEMENT_VERSION, BETA_GUIDELINES_URL, PRIVACY_URL, TERMS_URL } from './legalLinks';
 import '../agreement.css';
 
 const client = generateClient<Schema>();
@@ -37,7 +37,10 @@ const NOTICES: Notice[] = [
       <>
         Immuny is still being developed, and some features may be incomplete or change.{' '}
         <strong>For this test, please use fictional information only.</strong>{' '}
-        <u>Do not enter real health information about yourself or your family.</u>
+        <u>Do not enter real health information about yourself or your family.</u>{' '}
+        Read the{' '}
+        <a href={BETA_GUIDELINES_URL} target="_blank" rel="noopener noreferrer">Beta Testing Guidelines</a>{' '}
+        before you start.
       </>
     ),
   },
@@ -91,6 +94,7 @@ const NOTICES: Notice[] = [
 const DOCUMENTS = [
   { label: 'Privacy Policy', url: PRIVACY_URL },
   { label: 'Terms of Service', url: TERMS_URL },
+  { label: 'Beta Testing Guidelines', url: BETA_GUIDELINES_URL },
 ];
 
 const AGREEMENTS = [
