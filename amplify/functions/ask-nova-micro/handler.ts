@@ -97,6 +97,23 @@ Rules:
 - Keep whoever the question is about. If it names a person ("Where on Maya's body is the rash?"), keep that name and those pronouns — do NOT rewrite it into "your". The caller already knows who is being logged.
 - Plain, warm, under 20 words.`;
 
+// ─── SUMMARY PROMPT ───────────────────────────────────────────────────────────
+// Used when mode === 'summarize'. The app sends Bea the most recent turns word
+// for word and folds everything older into this running summary, so a long
+// conversation keeps its facts without sending the whole transcript each time.
+const SUMMARIZE_PROMPT = `You keep the running memory of an allergy-tracking chat between a user and Bea, an assistant. Merge the PREVIOUS SUMMARY with the NEW TURNS into one updated summary.
+
+Rules:
+- Keep every concrete fact the user stated: foods eaten, symptoms, where on the body, when they started and how long they lasted, severity, medications taken, known allergies, doctors and appointments, and who each fact is about.
+- Record facts only as the user stated them. Never conclude what caused a reaction, never add advice or interpretation, and never record something Bea suggested as if it were a fact.
+- Drop greetings, small talk and Bea's general advice.
+- If a later turn corrects an earlier fact, keep only the corrected version.
+- Short plain sentences, under 150 words. Output the summary only, with no heading or preamble.`;
+
+// Most turns the app ever has unsummarized is ~42 (it folds past 40); this is
+// only a guard against an oversized request from an old or modified client.
+const MAX_HISTORY_TURNS = 50;
+
 export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
     event
 ) => {
@@ -107,12 +124,19 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
 
         const extracting = mode === "extract";
         const phrasing = mode === "phrase";
+        const summarizing = mode === "summarize";
 
         // ── Build system block ──────────────────────────────────────────────────
         // If a session context summary is provided, append it so Nova is fully
         // grounded in what's happened this conversation.
-        const basePrompt = extracting ? EXTRACT_PROMPT : phrasing ? PHRASE_PROMPT : SYSTEM_PROMPT;
-        const contextLabel = extracting ? "INPUT" : phrasing ? "CONTEXT" : "SESSION CONTEXT";
+        const basePrompt = extracting
+            ? EXTRACT_PROMPT
+            : phrasing
+            ? PHRASE_PROMPT
+            : summarizing
+            ? SUMMARIZE_PROMPT
+            : SYSTEM_PROMPT;
+        const contextLabel = extracting ? "INPUT" : phrasing || summarizing ? "CONTEXT" : "SESSION CONTEXT";
         const systemText = context
             ? `${basePrompt}\n\n--- ${contextLabel} ---\n${context}\n-----------------------`
             : basePrompt;
@@ -120,14 +144,16 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
         // ── Build conversation messages ─────────────────────────────────────────
         const messages: { role: string; content: { text: string }[] }[] = [];
 
-        // Inject last 10 turns from history (increased from 6 for better context)
-        if (history) {
+        // The app sends the recent turns it hasn't summarized yet (30–40 of
+        // them); older turns arrive folded into the context as a summary.
+        // A summary request carries its transcript in `question`, not history.
+        if (history && !summarizing) {
             try {
                 const parsed = JSON.parse(history) as {
                     role: string;
                     content: string;
                 }[];
-                for (const turn of parsed.slice(-10)) {
+                for (const turn of parsed.slice(-MAX_HISTORY_TURNS)) {
                     messages.push({
                         role: turn.role === "assistant" ? "assistant" : "user",
                         content: [{ text: turn.content }],
@@ -176,6 +202,12 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
                       temperature: 0.4,  // a little variety, still tightly bound
                       topP: 0.9,
                   }
+                : summarizing
+                ? {
+                      maxTokens: 350,   // ~150 words with headroom, never cut mid-fact
+                      temperature: 0,   // a memory should not be creative
+                      topP: 1,
+                  }
                 : {
                       maxTokens: 300,    // Raised from 80 — allow complete, natural sentences
                       temperature: 0.75, // Slightly creative, still focused
@@ -208,7 +240,7 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
             userId: identity?.sub ?? "unknown",
             provider: "bedrock",
             model: NOVA_MICRO.modelId,
-            mode: extracting ? "extract" : phrasing ? "phrase" : "chat",
+            mode: extracting ? "extract" : phrasing ? "phrase" : summarizing ? "summarize" : "chat",
             costUsd: novaMicroCostUsd(inputTokens, outputTokens),
             handlerStartedAt,
             metrics: {
@@ -220,8 +252,11 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
                 latencyMs,
             },
         });
+        // An empty summary tells the app to keep the turns and try again later.
         const fallback = extracting
             ? "{}"
+            : summarizing
+            ? ""
             : "I'm here to help! Could you tell me a bit more about what's going on?";
         const text = raw.output?.message?.content?.[0]?.text?.trim() ?? fallback;
 
@@ -230,8 +265,11 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
         console.error("askNovaMicro error:", err);
         // Extraction callers parse the response — hand them empty JSON rather
         // than an apology sentence they'd have to treat as a parse failure.
+        // A failed summary must not become the memory, so it returns empty too.
         return event.arguments.mode === "extract"
             ? "{}"
+            : event.arguments.mode === "summarize"
+            ? ""
             : "Sorry, I had a moment there! What were you saying about your health?";
     }
 };

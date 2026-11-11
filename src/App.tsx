@@ -40,6 +40,14 @@ import {
   loadMessages,
   touchThread,
 } from './utils/chatThreads';
+import {
+  FOLD_AT,
+  HISTORY_WINDOW,
+  MAX_KEPT_TURNS,
+  buildEarlierBlock,
+  summarizeTurns,
+  type HistoryTurn,
+} from './utils/chatMemory';
 
 // ── 🔴 WATCH SENSOR FEATURE (COMMENTED OUT — ready for future integration) ──
 // import WatchStatus, { type Vitals } from './components/WatchStatus';
@@ -60,11 +68,6 @@ interface Message {
   timestamp: Date;
   source?: 'nova';
   imagePreview?: string;
-}
-
-interface HistoryTurn {
-  role: 'user' | 'assistant';
-  content: string;
 }
 
 // ─── SESSION CONTEXT (Live Memory) ───────────────────────────────────────────
@@ -368,7 +371,18 @@ function AppShell({ userId, userEmail }: AppShellProps) {
     useActivePatient();
 
   const [messages, setMessages] = useState<Message[]>([]);
+  // Turns not yet folded into earlierSummary — Bea sees all of them verbatim.
   const [chatHistory, setChatHistory] = useState<HistoryTurn[]>([]);
+  // Running summary of turns older than chatHistory (see utils/chatMemory).
+  const [earlierSummary, setEarlierSummary] = useState('');
+  const earlierSummaryRef = useRef('');
+  earlierSummaryRef.current = earlierSummary;
+  // Bumped whenever the conversation is swapped out, so a summary that comes
+  // back for the previous person's chat is thrown away instead of applied.
+  const memoryGenRef = useRef(0);
+  // The memoryGen of the summary call in flight, or null. One at a time per
+  // conversation, so two calls never race to overwrite each other's summary.
+  const foldingRef = useRef<number | null>(null);
   const [sessionContext, setSessionContext] = useState<SessionContext>(INITIAL_SESSION_CONTEXT);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -561,6 +575,8 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       setActiveThread(null);
       setMessages([]);
       setChatHistory([]);
+      setEarlierSummary('');
+      const memoryGen = ++memoryGenRef.current;
       setLoggingSession(null);
       setAwaitingSubjectChoice(false);
       setSessionContext(seedSessionContext(activePatient));
@@ -586,7 +602,22 @@ function AppShell({ userId, userEmail }: AppShellProps) {
               }))
             : [{ id: m.id, role: 'user', content: m.content, timestamp: new Date(m.sentAt) }]
         )));
-        setChatHistory(stored.slice(-20).map(m => ({ role: m.role, content: m.content })));
+        // Reopening a long chat: Bea gets the last HISTORY_WINDOW turns word for
+        // word, and everything before them is summarized once in the background.
+        // The chat is usable straight away; the summary joins her context as
+        // soon as it arrives.
+        const turns: HistoryTurn[] = stored.map(m => ({ role: m.role, content: m.content }));
+        setChatHistory(turns.slice(-HISTORY_WINDOW));
+        if (turns.length > HISTORY_WINDOW) {
+          foldingRef.current = memoryGen;
+          void summarizeTurns('', turns.slice(0, -HISTORY_WINDOW), buildSubjectBlock(activePatient) ?? undefined)
+            .then(summary => {
+              if (summary && memoryGenRef.current === memoryGen) setEarlierSummary(summary);
+            })
+            .finally(() => {
+              if (foldingRef.current === memoryGen) foldingRef.current = null;
+            });
+        }
         hasGreetedOnce.current = true;
       } else {
         setActiveThread(null);
@@ -621,6 +652,33 @@ function AppShell({ userId, userEmail }: AppShellProps) {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, onboardingStatus, patientsLoading]);
+
+  // ── Fold old turns into the summary ──────────────────────────────────────
+  // Once more than FOLD_AT turns are unsummarized, everything before the last
+  // HISTORY_WINDOW is merged into earlierSummary and dropped from chatHistory.
+  // Runs in the background after a reply; if the summary call fails the turns
+  // stay (Bea still sees them) and the next reply tries again.
+  useEffect(() => {
+    const gen = memoryGenRef.current;
+    if (chatHistory.length <= FOLD_AT || foldingRef.current === gen) return;
+    const oldest = chatHistory.slice(0, chatHistory.length - HISTORY_WINDOW);
+    const lastFolded = oldest[oldest.length - 1];
+    foldingRef.current = gen;
+    void summarizeTurns(earlierSummaryRef.current, oldest, buildSubjectBlock(activePatient) ?? undefined)
+      .then(summary => {
+        if (!summary || memoryGenRef.current !== gen) return;
+        setEarlierSummary(summary);
+        // Drop by identity rather than count, so turns appended while the
+        // summary was being written are never the ones removed.
+        setChatHistory(prev => {
+          const idx = prev.indexOf(lastFolded);
+          return idx >= 0 ? prev.slice(idx + 1) : prev;
+        });
+      })
+      .finally(() => {
+        if (foldingRef.current === gen) foldingRef.current = null;
+      });
+  }, [chatHistory, activePatient]);
 
   // ── DynamoDB Event Logger (non-blocking) ──────────────────────────────────
   const logEvent = useCallback(async (
@@ -738,11 +796,15 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       const result = await client.queries.askNovaMicro({
         question: prompt,
         history: JSON.stringify(chatHistory.slice(-4)),
-        context: composeContext(buildSubjectBlock(activePatient), buildContextSummary(sessionContext)),
+        context: composeContext(
+          buildSubjectBlock(activePatient),
+          buildContextSummary(sessionContext),
+          buildEarlierBlock(earlierSummary),
+        ),
       });
       const questionText = String(result.data ?? field.question).trim();
       sayAndSave(questionText);
-      setChatHistory(prev => [...prev, { role: 'assistant', content: questionText }].slice(-20) as HistoryTurn[]);
+      setChatHistory(prev => [...prev, { role: 'assistant', content: questionText }].slice(-MAX_KEPT_TURNS) as HistoryTurn[]);
     } catch {
       // Fallback: use the raw question text
       const fallback = `What is the ${field.label.toLowerCase()}?`;
@@ -891,7 +953,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
     const updatedHistory: HistoryTurn[] = [
       ...chatHistory,
       { role: 'user' as const, content: userContent },
-    ].slice(-20);
+    ].slice(-MAX_KEPT_TURNS);
     setChatHistory(updatedHistory);
 
     // Persist the user's turn before anything can fail downstream, so a dropped
@@ -916,8 +978,10 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       }
     }
 
-    // History snapshot already includes the current user turn (fixed above)
-    const historySnapshot = updatedHistory.slice(-10);
+    // History snapshot already includes the current user turn (fixed above).
+    // Every unsummarized turn goes to Bea: at least HISTORY_WINDOW recent ones,
+    // with anything older carried by earlierSummary in the context.
+    const historySnapshot = updatedHistory;
     const contextSummary = buildContextSummary(sessionContext);
 
     // A photo is answered from the text Textract reads off it. Nova Micro
@@ -950,6 +1014,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
     const novaContext = composeContext(
       buildSubjectBlock(activePatient),
       contextSummary,
+      buildEarlierBlock(earlierSummary),
       labelText ? `Text read from the photo the user just sent:\n${labelText}` : '',
     );
 
@@ -1026,7 +1091,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       setChatHistory(prev => [
         ...prev,
         { role: 'assistant', content: responseText },
-      ].slice(-20) as HistoryTurn[]);
+      ].slice(-MAX_KEPT_TURNS) as HistoryTurn[]);
 
       // ── Update session context with entities from this exchange ──────────
       updateSessionContext(userContent, responseText);
