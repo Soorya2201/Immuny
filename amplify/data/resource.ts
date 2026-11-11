@@ -150,6 +150,35 @@ const schema = a.schema({
   }).secondaryIndexes(index => [index('threadId').sortKeys(['sentAt'])])
     .authorization(allow => [allow.owner()]),
 
+  // ── Chat memory ──────────────────────────────────────────────────────────
+  // What Bea remembers about one conversation beyond the recent turns she is
+  // sent word for word. One row per ChatThread, keyed by its id. Two parts:
+  //  - the running summary of older turns (src/utils/chatMemory.ts), and
+  //  - the session notes picked out of the chat (allergies, symptoms, topic…).
+  // Saved as the chat goes and restored when it is reopened, so a long chat
+  // keeps its memory without re-reading or re-summarizing the transcript.
+  ChatMemory: a.model({
+    threadId: a.string().required(),     // ChatThread.id this memory belongs to
+    familyMemberId: a.string(),          // who the chat is about; null = profile owner
+    schemaVersion: a.integer(),          // bump when the meaning of a field changes
+
+    // Running summary of turns older than the recent window
+    summary: a.string(),                 // plain-text facts the user stated, <150 words
+    summarizedThroughSentAt: a.string(), // ChatMessage.sentAt of the last turn the summary covers
+    summaryUpdatedAt: a.string(),        // ISO datetime
+
+    // Session notes, extracted from the chat as it goes
+    knownAllergies: a.string().array(),  // e.g. ["peanut", "shellfish"]
+    currentSymptoms: a.string().array(), // the last 8 symptoms mentioned
+    currentTopic: a.string(),            // short hint from the latest user message
+    lastMentionedFood: a.string(),
+    lastMentionedMedication: a.string(),
+    urgencyLevel: a.enum(['normal', 'elevated', 'emergency']), // never lowered within a chat
+    turnCount: a.integer(),              // exchanges the notes have been built from
+    sessionUpdatedAt: a.string(),        // ISO datetime
+  }).identifier(['threadId'])
+    .authorization(allow => [allow.owner()]),
+
   // ── Community posts ──────────────────────────────────────────────────────
   CommunityPost: a.model({
     authorUsername: a.string(),       // null when anonymous

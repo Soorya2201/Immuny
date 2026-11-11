@@ -10,6 +10,7 @@
 
 import { generateClient } from 'aws-amplify/data';
 import type { Schema } from '../../amplify/data/resource';
+import { deleteChatMemory } from './chatMemory';
 
 const client = generateClient<Schema>();
 
@@ -150,6 +151,9 @@ export async function appendMessage(
   familyMemberId: string | undefined,
   role: 'user' | 'assistant',
   content: string,
+  // Passed in by the chat so its in-memory turn and the saved row share one
+  // timestamp — the saved memory uses it to mark where its summary stops.
+  sentAt: string = new Date().toISOString(),
 ): Promise<void> {
   try {
     await client.models.ChatMessage.create({
@@ -157,7 +161,7 @@ export async function appendMessage(
       familyMemberId: familyMemberId ?? null,
       role,
       content,
-      sentAt: new Date().toISOString(),
+      sentAt,
     });
   } catch (e) {
     console.warn('Failed to save a chat message', e);
@@ -181,6 +185,7 @@ export async function deleteThread(threadId: string): Promise<void> {
   try {
     const messages = await loadMessages(threadId);
     await Promise.all(messages.map(m => client.models.ChatMessage.delete({ id: m.id })));
+    await deleteChatMemory(threadId);
     await client.models.ChatThread.delete({ id: threadId });
   } catch (e) {
     console.warn('Failed to delete a chat thread', e);

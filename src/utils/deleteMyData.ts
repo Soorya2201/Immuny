@@ -9,6 +9,7 @@ const client = generateClient<Schema>();
 // Models only the account itself can read. list() on these already returns
 // just this account's rows.
 const PRIVATE_MODELS = [
+  'ChatMemory',
   'ChatMessage',
   'ChatThread',
   'MedicationLog',
@@ -37,7 +38,9 @@ function api(name: ModelName): ModelApi {
 }
 
 function keyOf(name: ModelName, row: Record<string, unknown>) {
-  return name === 'PostLike' ? { postId: row.postId, userId: row.userId } : { id: row.id };
+  if (name === 'PostLike') return { postId: row.postId, userId: row.userId };
+  if (name === 'ChatMemory') return { threadId: row.threadId };
+  return { id: row.id };
 }
 
 export interface DeleteProgress {

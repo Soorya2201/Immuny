@@ -45,8 +45,12 @@ import {
   HISTORY_WINDOW,
   MAX_KEPT_TURNS,
   buildEarlierBlock,
+  loadChatMemory,
+  saveSessionNotes,
+  saveSummary,
   summarizeTurns,
   type HistoryTurn,
+  type SessionNotes,
 } from './utils/chatMemory';
 
 // ── 🔴 WATCH SENSOR FEATURE (COMMENTED OUT — ready for future integration) ──
@@ -73,15 +77,9 @@ interface Message {
 // ─── SESSION CONTEXT (Live Memory) ───────────────────────────────────────────
 // This is the "working memory" of the conversation. It tracks entities and
 // topics the user mentions so Nova can reference them across turns naturally.
-interface SessionContext {
-  knownAllergies: string[];        // e.g. ["shellfish", "peanuts"]
-  currentSymptoms: string[];       // symptoms mentioned this session
-  currentTopic: string | null;     // e.g. "reaction at restaurant"
-  lastMentionedFood: string | null;
-  lastMentionedMedication: string | null;
-  urgencyLevel: 'normal' | 'elevated' | 'emergency';
-  turnCount: number;
-}
+// Saved per conversation as the ChatMemory model's session notes, so the type
+// lives with the code that stores it.
+type SessionContext = SessionNotes;
 
 const INITIAL_SESSION_CONTEXT: SessionContext = {
   knownAllergies: [],
@@ -383,6 +381,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
   // The memoryGen of the summary call in flight, or null. One at a time per
   // conversation, so two calls never race to overwrite each other's summary.
   const foldingRef = useRef<number | null>(null);
+  const restoredNotesRef = useRef(false);
   const [sessionContext, setSessionContext] = useState<SessionContext>(INITIAL_SESSION_CONTEXT);
   const [inputText, setInputText] = useState('');
   const [loading, setLoading] = useState(false);
@@ -585,7 +584,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       if (cancelled) return;
 
       if (thread) {
-        const stored = await loadMessages(thread.id);
+        const [stored, saved] = await Promise.all([loadMessages(thread.id), loadChatMemory(thread.id)]);
         if (cancelled) return;
         setActiveThread(thread.id);
         setThreadMessageCount(stored.length);
@@ -602,17 +601,43 @@ function AppShell({ userId, userEmail }: AppShellProps) {
               }))
             : [{ id: m.id, role: 'user', content: m.content, timestamp: new Date(m.sentAt) }]
         )));
-        // Reopening a long chat: Bea gets the last HISTORY_WINDOW turns word for
-        // word, and everything before them is summarized once in the background.
-        // The chat is usable straight away; the summary joins her context as
-        // soon as it arrives.
-        const turns: HistoryTurn[] = stored.map(m => ({ role: m.role, content: m.content }));
-        setChatHistory(turns.slice(-HISTORY_WINDOW));
-        if (turns.length > HISTORY_WINDOW) {
+        const turns: HistoryTurn[] = stored.map(m => ({ role: m.role, content: m.content, sentAt: m.sentAt }));
+
+        // Session notes saved for this chat pick up where they left off. The
+        // person's recorded allergies are merged back in, in case the profile
+        // gained one since.
+        if (saved.notes) {
+          restoredNotesRef.current = true;   // don't write them straight back
+          const seed = seedSessionContext(activePatient);
+          setSessionContext({
+            ...saved.notes,
+            knownAllergies: [...new Set([...seed.knownAllergies, ...saved.notes.knownAllergies])],
+          });
+        }
+
+        if (saved.summary) {
+          // Saved summary: restore it, and send Bea word for word only what
+          // came after the last turn it covers. No summary call needed.
+          const through = saved.summary.summarizedThroughSentAt;
+          setEarlierSummary(saved.summary.summary);
+          setChatHistory(turns.filter(t => (t.sentAt ?? '') > through).slice(-MAX_KEPT_TURNS));
+        } else {
+          // No saved summary yet (a chat from before memory was saved): Bea
+          // gets the last HISTORY_WINDOW turns word for word, and everything
+          // before them is summarized once in the background and saved. The
+          // chat is usable straight away; the summary joins her context as
+          // soon as it arrives.
+          setChatHistory(turns.slice(-HISTORY_WINDOW));
+        }
+        if (!saved.summary && turns.length > HISTORY_WINDOW) {
+          const older = turns.slice(0, -HISTORY_WINDOW);
+          const through = older[older.length - 1].sentAt;
           foldingRef.current = memoryGen;
-          void summarizeTurns('', turns.slice(0, -HISTORY_WINDOW), buildSubjectBlock(activePatient) ?? undefined)
+          void summarizeTurns('', older, buildSubjectBlock(activePatient) ?? undefined)
             .then(summary => {
-              if (summary && memoryGenRef.current === memoryGen) setEarlierSummary(summary);
+              if (!summary || memoryGenRef.current !== memoryGen) return;
+              setEarlierSummary(summary);
+              if (through) void saveSummary(thread.id, activeId, { summary, summarizedThroughSentAt: through });
             })
             .finally(() => {
               if (foldingRef.current === memoryGen) foldingRef.current = null;
@@ -663,11 +688,17 @@ function AppShell({ userId, userEmail }: AppShellProps) {
     if (chatHistory.length <= FOLD_AT || foldingRef.current === gen) return;
     const oldest = chatHistory.slice(0, chatHistory.length - HISTORY_WINDOW);
     const lastFolded = oldest[oldest.length - 1];
+    // Captured now: by the time the summary returns the person may have changed.
+    const threadId = threadIdRef.current;
+    const familyMemberId = activeId;
     foldingRef.current = gen;
     void summarizeTurns(earlierSummaryRef.current, oldest, buildSubjectBlock(activePatient) ?? undefined)
       .then(summary => {
         if (!summary || memoryGenRef.current !== gen) return;
         setEarlierSummary(summary);
+        if (threadId && lastFolded.sentAt) {
+          void saveSummary(threadId, familyMemberId, { summary, summarizedThroughSentAt: lastFolded.sentAt });
+        }
         // Drop by identity rather than count, so turns appended while the
         // summary was being written are never the ones removed.
         setChatHistory(prev => {
@@ -678,7 +709,22 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       .finally(() => {
         if (foldingRef.current === gen) foldingRef.current = null;
       });
-  }, [chatHistory, activePatient]);
+  }, [chatHistory, activePatient, activeId]);
+
+  // ── Save the session notes ───────────────────────────────────────────────
+  // After every exchange, so a reopened chat carries on with the same notes.
+  // Skipped before the first exchange (turnCount 0): that is only the seed
+  // from the person's profile, and there may not be a thread yet.
+  useEffect(() => {
+    if (restoredNotesRef.current) {
+      restoredNotesRef.current = false;
+      return;
+    }
+    const threadId = threadIdRef.current;
+    if (!threadId || sessionContext.turnCount === 0) return;
+    void saveSessionNotes(threadId, activeId, sessionContext);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionContext]);
 
   // ── DynamoDB Event Logger (non-blocking) ──────────────────────────────────
   const logEvent = useCallback(async (
@@ -760,7 +806,11 @@ function AppShell({ userId, userEmail }: AppShellProps) {
    * a staggered timeout or the logging state machine land in the same thread
    * instead of racing a second one into existence.
    */
-  const persistTurn = async (role: 'user' | 'assistant', content: string): Promise<void> => {
+  const persistTurn = async (
+    role: 'user' | 'assistant',
+    content: string,
+    sentAt: string = new Date().toISOString(),
+  ): Promise<void> => {
     let id = threadIdRef.current;
     if (!id) {
       // Only a user turn is worth opening a thread for — a greeting nobody
@@ -772,7 +822,7 @@ function AppShell({ userId, userEmail }: AppShellProps) {
       setActiveThread(id);
     }
     const target = id;
-    await appendMessage(target, activeId, role, content);
+    await appendMessage(target, activeId, role, content, sentAt);
     setThreadMessageCount(prev => {
       const next = prev + 1;
       void touchThread(target, next);
@@ -781,9 +831,11 @@ function AppShell({ userId, userEmail }: AppShellProps) {
   };
 
   /** Say one of Bea's lines and record it, so the saved transcript reads as a conversation. */
-  const sayAndSave = (text: string) => {
+  const sayAndSave = (text: string): string => {
+    const sentAt = new Date().toISOString();
     injectBubbles(text, 'nova', false);
-    void persistTurn('assistant', text);
+    void persistTurn('assistant', text, sentAt);
+    return sentAt;
   };
 
   // ── CONVERSATIONAL LOGGING HELPERS ────────────────────────────────────────────
@@ -803,8 +855,8 @@ function AppShell({ userId, userEmail }: AppShellProps) {
         ),
       });
       const questionText = String(result.data ?? field.question).trim();
-      sayAndSave(questionText);
-      setChatHistory(prev => [...prev, { role: 'assistant', content: questionText }].slice(-MAX_KEPT_TURNS) as HistoryTurn[]);
+      const sentAt = sayAndSave(questionText);
+      setChatHistory(prev => [...prev, { role: 'assistant', content: questionText, sentAt }].slice(-MAX_KEPT_TURNS) as HistoryTurn[]);
     } catch {
       // Fallback: use the raw question text
       const fallback = `What is the ${field.label.toLowerCase()}?`;
@@ -950,15 +1002,16 @@ function AppShell({ userId, userEmail }: AppShellProps) {
     // ── FIX: Add user turn to history BEFORE calling API ────────────────────
     // This ensures the current message is visible in the history sent to Nova,
     // preventing the "forgets what I just said" bug.
+    const userSentAt = new Date().toISOString();
     const updatedHistory: HistoryTurn[] = [
       ...chatHistory,
-      { role: 'user' as const, content: userContent },
+      { role: 'user' as const, content: userContent, sentAt: userSentAt },
     ].slice(-MAX_KEPT_TURNS);
     setChatHistory(updatedHistory);
 
     // Persist the user's turn before anything can fail downstream, so a dropped
     // reply still leaves a record of what was reported.
-    await persistTurn('user', userContent);
+    await persistTurn('user', userContent, userSentAt);
 
     // ── CONVERSATIONAL LOGGING INTERCEPT ────────────────────────────────────
     // If a logging session is active, route the answer to the state machine
@@ -1084,13 +1137,14 @@ function AppShell({ userId, userEmail }: AppShellProps) {
 
       // Saved whole rather than per-bubble so the history sent to Nova on the
       // next load is the same shape it was during the live conversation.
-      void persistTurn('assistant', responseText);
+      const replySentAt = new Date().toISOString();
+      void persistTurn('assistant', responseText, replySentAt);
 
       // ── Update rolling chat history with assistant reply ─────────────────
       // Note: user turn was already added before the API call (timing fix).
       setChatHistory(prev => [
         ...prev,
-        { role: 'assistant', content: responseText },
+        { role: 'assistant', content: responseText, sentAt: replySentAt },
       ].slice(-MAX_KEPT_TURNS) as HistoryTurn[]);
 
       // ── Update session context with entities from this exchange ──────────
