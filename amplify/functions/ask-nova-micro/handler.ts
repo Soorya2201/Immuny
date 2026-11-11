@@ -138,7 +138,27 @@ export const handler: Schema["askNovaMicro"]["functionHandler"] = async (
             }
         }
 
-        messages.push({ role: "user", content: [{ text: question }] });
+        // Callers often include the current question as the last history turn
+        // already; don't send it twice.
+        const last = messages[messages.length - 1];
+        if (!(last?.role === "user" && last.content[0]?.text === question)) {
+            messages.push({ role: "user", content: [{ text: question }] });
+        }
+
+        // Bedrock rejects a conversation that opens with an assistant turn
+        // ("First message must use the user role"). Slicing an alternating
+        // history to its last 10 turns while it ends on the user always leaves
+        // an assistant turn first, so every chat past ~5 exchanges failed.
+        while (messages.length > 1 && messages[0].role !== "user") messages.shift();
+
+        // Roles must also alternate; merge back-to-back turns from the same side
+        // (e.g. several logging questions from Bea in a row).
+        for (let i = messages.length - 1; i > 0; i--) {
+            if (messages[i].role === messages[i - 1].role) {
+                messages[i - 1].content[0].text += `\n${messages[i].content[0].text}`;
+                messages.splice(i, 1);
+            }
+        }
 
         const body = JSON.stringify({
             schemaVersion: "messages-v1",
