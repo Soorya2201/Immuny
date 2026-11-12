@@ -566,7 +566,8 @@ export default function ProfilePage() {
       <Section title="Clinician Export" icon={DownloadIcon}>
         <p style={{ marginTop: 0, marginBottom: 12, color: '#667781', fontSize: 13, lineHeight: 1.5 }}>
           Turn logged entries into an allergy visit summary — a PDF built for a clinician, with detected
-          patterns, a reaction timeline, and notes on what wasn't recorded. It does not diagnose anything.
+          patterns, a reaction timeline, and notes on what wasn't recorded. It is user-reported wellness data,
+          not a clinical diagnostic report, and it does not diagnose anything.
         </p>
         <button
           className="save-btn"

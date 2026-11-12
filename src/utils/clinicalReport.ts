@@ -525,7 +525,9 @@ export function buildReport(input: ReportInput): ReportModel {
     preparedLabel: `Prepared ${mediumDate(generatedAt)}`,
     scopeNote:
       `This document summarises ${plural(inPeriod.length, 'entry', 'entries')} recorded in Immuny by the patient or their caregiver ` +
-      `over ${dayCount} days. Detected patterns are associations for clinician review, not confirmed allergies or medical diagnoses.`,
+      `over ${dayCount} days. It is user-reported wellness data, not a clinical diagnostic report or a medical record, and has not ` +
+      'been verified by a healthcare professional. Detected patterns are associations for clinician review, not confirmed allergies ' +
+      'or medical diagnoses.',
     kpis,
     pattern,
     safety: safety.slice(0, 3),

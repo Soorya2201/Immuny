@@ -45,6 +45,20 @@ const TOPBAR_SPLIT = 465.1;   // blue/orange split of the top gradient bar
 const FOOTER_RULE_Y = 767.5;
 const BODY_BOTTOM = 745;
 
+// ─── Disclaimers ──────────────────────────────────────────────────────────────
+// Printed on every page. The summary is built from what users entered, so it
+// must never read as a clinical document: the header says so under the badge,
+// the footer repeats it, and the scope panel on page 1 explains it in full.
+export const HEADER_BADGE = 'FOR CLINICIAN REVIEW';
+export const HEADER_DISCLAIMER = 'USER-REPORTED WELLNESS DATA · NOT A CLINICAL DIAGNOSTIC REPORT';
+
+/** Footer line; without a name it is the short form used when a long name won't fit. */
+export function footerText(patientName?: string): string {
+  return patientName
+    ? `Generated from Immuny for ${patientName}. User-reported wellness data for clinician review, not a clinical diagnostic report.`
+    : 'User-reported wellness data for clinician review, not a clinical diagnostic report.';
+}
+
 // ── Title block rhythm ──────────────────────────────────────────────────────
 const EYEBROW_SIZE = 7.5;
 const TITLE_SIZE = 24;
@@ -152,13 +166,18 @@ function drawHeader(ctx: Ctx) {
   pdf.text('ALLERGY VISIT SUMMARY', titleX, 33.7);
   wordmark(pdf, titleX, 43.4, 6.2, 'IMMUNY', ' ALLERGY ALLY');
 
-  box(pdf, 479.7, 23, 92, 16, ORANGE, null, 8);
+  // Badge sized to its text and pinned to the right margin.
   font(pdf, 6.5, 'bold', WHITE);
   pdf.setCharSpace(0.4);
-  pdf.text('CLINICIAN EXPORT', 479.7 + 46, 33, { align: 'center' });
+  const badgeW = pdf.getTextWidth(HEADER_BADGE) + HEADER_BADGE.length * 0.4 + 16;
+  box(pdf, RIGHT - badgeW, 23, badgeW, 16, ORANGE, null, 8);
+  font(pdf, 6.5, 'bold', WHITE);
+  pdf.text(HEADER_BADGE, RIGHT - badgeW / 2, 33, { align: 'center' });
   pdf.setCharSpace(0);
-  font(pdf, 5.7, 'normal', TEXT_MUTED);
-  pdf.text('SELF-REPORTED EXPORT', RIGHT, 48.3, { align: 'right' });
+
+  // On every page, legible, directly under the badge: what this document is not.
+  font(pdf, 6.3, 'bold', BLUE_DARK);
+  pdf.text(HEADER_DISCLAIMER, RIGHT, 48.3, { align: 'right' });
 }
 
 function drawFooter(ctx: Ctx) {
@@ -175,8 +194,14 @@ function drawFooter(ctx: Ctx) {
   wordmark(pdf, MARGIN, 779, 6.2, 'IMMUNY', ' ALLERGY ALLY');
   const tagWidth = pdf.getTextWidth('IMMUNY ALLERGY ALLY');
   font(pdf, 6.0, 'normal', TEXT_MUTED);
-  pdf.text(`  |  ${ctx.footerText}`, MARGIN + tagWidth, 779);
-  pdf.text(`Page ${ctx.page}`, RIGHT, 779, { align: 'right' });
+  const pageLabel = `Page ${ctx.page}`;
+  // Room between the wordmark and the page number. A long patient name could
+  // push the footer into the page number, so fall back to the version without
+  // the name — the disclaimer itself must always print in full.
+  const room = RIGHT - pdf.getTextWidth(pageLabel) - 12 - (MARGIN + tagWidth);
+  const footer = pdf.getTextWidth(`  |  ${ctx.footerText}`) <= room ? ctx.footerText : footerText();
+  pdf.text(`  |  ${footer}`, MARGIN + tagWidth, 779);
+  pdf.text(pageLabel, RIGHT, 779, { align: 'right' });
 }
 
 function paintBackground(pdf: jsPDF) {
@@ -387,7 +412,7 @@ export function renderVisitSummary(model: ReportModel, logo: LogoImage | null): 
   const pdf = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait', compress: true });
   pdf.setProperties({
     title: `Allergy visit summary — ${model.patientName}`,
-    subject: 'Immuny clinician export',
+    subject: 'Immuny allergy visit summary: user-reported wellness data, not a clinical diagnostic report',
     creator: 'Immuny',
   });
 
@@ -396,7 +421,7 @@ export function renderVisitSummary(model: ReportModel, logo: LogoImage | null): 
     y: 0,
     page: 1,
     logo,
-    footerText: `Generated from Immuny for ${model.patientName}, for clinician review, not for diagnosis.`,
+    footerText: footerText(model.patientName),
   };
 
   paintBackground(pdf);
@@ -404,7 +429,7 @@ export function renderVisitSummary(model: ReportModel, logo: LogoImage | null): 
 
   // ── Title block ───────────────────────────────────────────────────────────
   ctx.y = EYEBROW_BASELINE_Y;
-  titleBlock(ctx, 'Clinician export', 'Allergy visit summary');
+  titleBlock(ctx, 'For clinician review', 'Allergy visit summary');
   ctx.y += 20;
 
   font(pdf, 9.2, 'normal', TEXT_BODY);
@@ -416,7 +441,7 @@ export function renderVisitSummary(model: ReportModel, logo: LogoImage | null): 
   ctx.y += 30;
 
   // ── Scope note ────────────────────────────────────────────────────────────
-  ctx.y += panel(ctx, MARGIN, ctx.y, CONTENT_W, 'SELF-REPORTED RECORD', model.scopeNote, {
+  ctx.y += panel(ctx, MARGIN, ctx.y, CONTENT_W, 'USER-REPORTED WELLNESS RECORD', model.scopeNote, {
     bg: PEACH_BG,
     border: PEACH_BORDER,
     titleColour: BLUE,

@@ -168,6 +168,12 @@ describe('buildReport', () => {
     expect(model.kpis[3].label).toMatch(/emergency visits/);
   });
 
+  it('states the report is user-reported wellness data, not a clinical diagnostic report', () => {
+    expect(model.scopeNote).toMatch(/user-reported wellness data/);
+    expect(model.scopeNote).toMatch(/not a clinical diagnostic report/);
+    expect(model.scopeNote).toMatch(/not been verified by a healthcare professional/);
+  });
+
   it('describes the pattern as an association, not a diagnosis', () => {
     expect(model.pattern.title).toMatch(/^Possible /);
     expect(model.pattern.summary).toMatch(/contained, or may have contained/);
