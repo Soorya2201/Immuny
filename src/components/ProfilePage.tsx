@@ -30,6 +30,7 @@ import StatusMessage from './StatusMessage';
 import ExportDataSheet from './ExportDataSheet';
 import Section from './ProfileSection';
 import { DataUseSection, DeleteDataSection } from './PrivacyControls';
+import LogOutButton from './LogOutButton';
 import { COMMON_ALLERGENS } from '../utils/allergens';
 import PatientAvatar from './PatientAvatar';
 import { AQUATIC_AVATARS } from '../utils/avatars';
@@ -899,6 +900,9 @@ export default function ProfilePage() {
         <DataUseSection />
         <DeleteDataSection />
       </div>
+
+      {/* ── Log out: the very last control on the page. ── */}
+      <LogOutButton />
     </div>
   );
 }
